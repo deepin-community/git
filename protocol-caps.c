@@ -1,11 +1,13 @@
 #include "git-compat-util.h"
 #include "protocol-caps.h"
 #include "gettext.h"
+#include "hex.h"
 #include "pkt-line.h"
 #include "strvec.h"
-#include "hash.h"
+#include "hash-ll.h"
+#include "hex.h"
 #include "object.h"
-#include "object-store.h"
+#include "object-store-ll.h"
 #include "string-list.h"
 #include "strbuf.h"
 
@@ -75,10 +77,9 @@ static void send_info(struct repository *r, struct packet_writer *writer,
 	strbuf_release(&send_buffer);
 }
 
-int cap_object_info(struct repository *r, struct strvec *keys,
-		    struct packet_reader *request)
+int cap_object_info(struct repository *r, struct packet_reader *request)
 {
-	struct requested_info info;
+	struct requested_info info = { 0 };
 	struct packet_writer writer;
 	struct string_list oid_str_list = STRING_LIST_INIT_DUP;
 

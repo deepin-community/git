@@ -14,7 +14,7 @@
  * "cale", "peedy", or "ins" instead of "ort"?)
  */
 
-#include "cache.h"
+#include "git-compat-util.h"
 #include "merge-ort.h"
 
 #include "alloc.h"
@@ -26,13 +26,25 @@
 #include "diff.h"
 #include "diffcore.h"
 #include "dir.h"
+#include "environment.h"
+#include "gettext.h"
+#include "hex.h"
 #include "entry.h"
-#include "ll-merge.h"
-#include "object-store.h"
+#include "merge-ll.h"
+#include "match-trees.h"
+#include "mem-pool.h"
+#include "object-name.h"
+#include "object-store-ll.h"
+#include "oid-array.h"
+#include "path.h"
 #include "promisor-remote.h"
+#include "read-cache-ll.h"
 #include "revision.h"
+#include "sparse-index.h"
 #include "strmap.h"
+#include "submodule-config.h"
 #include "submodule.h"
+#include "trace2.h"
 #include "tree.h"
 #include "unpack-trees.h"
 #include "xdiff-interface.h"
@@ -303,8 +315,6 @@ struct merge_options_internal {
 	 *   * these keys serve to intern all the path strings, which allows
 	 *     us to do pointer comparison on directory names instead of
 	 *     strcmp; we just have to be careful to use the interned strings.
-	 *     (Technically paths_to_free may track some strings that were
-	 *      removed from froms paths.)
 	 *
 	 * The values of paths:
 	 *   * either a pointer to a merged_info, or a conflict_info struct
@@ -340,23 +350,25 @@ struct merge_options_internal {
 	struct strmap conflicted;
 
 	/*
-	 * paths_to_free: additional list of strings to free
+	 * pool: memory pool for fast allocation/deallocation
 	 *
-	 * If keys are removed from "paths", they are added to paths_to_free
-	 * to ensure they are later freed.  We avoid free'ing immediately since
-	 * other places (e.g. conflict_info.pathnames[]) may still be
-	 * referencing these paths.
+	 * We allocate room for lots of filenames and auxiliary data
+	 * structures in merge_options_internal, and it tends to all be
+	 * freed together too.  Using a memory pool for these provides a
+	 * nice speedup.
 	 */
-	struct string_list paths_to_free;
+	struct mem_pool pool;
 
 	/*
-	 * output: special messages and conflict notices for various paths
+	 * conflicts: logical conflicts and messages stored by _primary_ path
 	 *
 	 * This is a map of pathnames (a subset of the keys in "paths" above)
-	 * to strbufs.  It gathers various warning/conflict/notice messages
-	 * for later processing.
+	 * to struct string_list, with each item's `util` containing a
+	 * `struct logical_conflict_info`. Note, though, that for each path,
+	 * it only stores the logical conflicts for which that path is the
+	 * primary path; the path might be part of additional conflicts.
 	 */
-	struct strmap output;
+	struct strmap conflicts;
 
 	/*
 	 * renames: various data relating to rename detection
@@ -386,7 +398,23 @@ struct merge_options_internal {
 
 	/* call_depth: recursion level counter for merging merge bases */
 	int call_depth;
+
+	/* field that holds submodule conflict information */
+	struct string_list conflicted_submodules;
 };
+
+struct conflicted_submodule_item {
+	char *abbrev;
+	int flag;
+};
+
+static void conflicted_submodule_item_free(void *util, const char *str UNUSED)
+{
+	struct conflicted_submodule_item *item = util;
+
+	free(item->abbrev);
+	free(item);
+}
 
 struct version_info {
 	struct object_id oid;
@@ -482,6 +510,100 @@ struct conflict_info {
 	unsigned match_mask:3;
 };
 
+enum conflict_and_info_types {
+	/* "Simple" conflicts and informational messages */
+	INFO_AUTO_MERGING = 0,
+	CONFLICT_CONTENTS,       /* text file that failed to merge */
+	CONFLICT_BINARY,
+	CONFLICT_FILE_DIRECTORY,
+	CONFLICT_DISTINCT_MODES,
+	CONFLICT_MODIFY_DELETE,
+
+	/* Regular rename */
+	CONFLICT_RENAME_RENAME,   /* same file renamed differently */
+	CONFLICT_RENAME_COLLIDES, /* rename/add or two files renamed to 1 */
+	CONFLICT_RENAME_DELETE,
+
+	/* Basic directory rename */
+	CONFLICT_DIR_RENAME_SUGGESTED,
+	INFO_DIR_RENAME_APPLIED,
+
+	/* Special directory rename cases */
+	INFO_DIR_RENAME_SKIPPED_DUE_TO_RERENAME,
+	CONFLICT_DIR_RENAME_FILE_IN_WAY,
+	CONFLICT_DIR_RENAME_COLLISION,
+	CONFLICT_DIR_RENAME_SPLIT,
+
+	/* Basic submodule */
+	INFO_SUBMODULE_FAST_FORWARDING,
+	CONFLICT_SUBMODULE_FAILED_TO_MERGE,
+
+	/* Special submodule cases broken out from FAILED_TO_MERGE */
+	CONFLICT_SUBMODULE_FAILED_TO_MERGE_BUT_POSSIBLE_RESOLUTION,
+	CONFLICT_SUBMODULE_NOT_INITIALIZED,
+	CONFLICT_SUBMODULE_HISTORY_NOT_AVAILABLE,
+	CONFLICT_SUBMODULE_MAY_HAVE_REWINDS,
+	CONFLICT_SUBMODULE_NULL_MERGE_BASE,
+
+	/* Keep this entry _last_ in the list */
+	NB_CONFLICT_TYPES,
+};
+
+/*
+ * Short description of conflict type, relied upon by external tools.
+ *
+ * We can add more entries, but DO NOT change any of these strings.  Also,
+ * Order MUST match conflict_info_and_types.
+ */
+static const char *type_short_descriptions[] = {
+	/*** "Simple" conflicts and informational messages ***/
+	[INFO_AUTO_MERGING] = "Auto-merging",
+	[CONFLICT_CONTENTS] = "CONFLICT (contents)",
+	[CONFLICT_BINARY] = "CONFLICT (binary)",
+	[CONFLICT_FILE_DIRECTORY] = "CONFLICT (file/directory)",
+	[CONFLICT_DISTINCT_MODES] = "CONFLICT (distinct modes)",
+	[CONFLICT_MODIFY_DELETE] = "CONFLICT (modify/delete)",
+
+	/*** Regular rename ***/
+	[CONFLICT_RENAME_RENAME] = "CONFLICT (rename/rename)",
+	[CONFLICT_RENAME_COLLIDES] = "CONFLICT (rename involved in collision)",
+	[CONFLICT_RENAME_DELETE] = "CONFLICT (rename/delete)",
+
+	/*** Basic directory rename ***/
+	[CONFLICT_DIR_RENAME_SUGGESTED] =
+		"CONFLICT (directory rename suggested)",
+	[INFO_DIR_RENAME_APPLIED] = "Path updated due to directory rename",
+
+	/*** Special directory rename cases ***/
+	[INFO_DIR_RENAME_SKIPPED_DUE_TO_RERENAME] =
+		"Directory rename skipped since directory was renamed on both sides",
+	[CONFLICT_DIR_RENAME_FILE_IN_WAY] =
+		"CONFLICT (file in way of directory rename)",
+	[CONFLICT_DIR_RENAME_COLLISION] = "CONFLICT(directory rename collision)",
+	[CONFLICT_DIR_RENAME_SPLIT] = "CONFLICT(directory rename unclear split)",
+
+	/*** Basic submodule ***/
+	[INFO_SUBMODULE_FAST_FORWARDING] = "Fast forwarding submodule",
+	[CONFLICT_SUBMODULE_FAILED_TO_MERGE] = "CONFLICT (submodule)",
+
+	/*** Special submodule cases broken out from FAILED_TO_MERGE ***/
+	[CONFLICT_SUBMODULE_FAILED_TO_MERGE_BUT_POSSIBLE_RESOLUTION] =
+		"CONFLICT (submodule with possible resolution)",
+	[CONFLICT_SUBMODULE_NOT_INITIALIZED] =
+		"CONFLICT (submodule not initialized)",
+	[CONFLICT_SUBMODULE_HISTORY_NOT_AVAILABLE] =
+		"CONFLICT (submodule history not available)",
+	[CONFLICT_SUBMODULE_MAY_HAVE_REWINDS] =
+		"CONFLICT (submodule may have rewinds)",
+	[CONFLICT_SUBMODULE_NULL_MERGE_BASE] =
+		"CONFLICT (submodule lacks merge base)"
+};
+
+struct logical_conflict_info {
+	enum conflict_and_info_types type;
+	struct strvec paths;
+};
+
 /*** Function Grouping: various utility functions ***/
 
 /*
@@ -519,64 +641,45 @@ static void clear_or_reinit_internal_opts(struct merge_options_internal *opti,
 {
 	struct rename_info *renames = &opti->renames;
 	int i;
-	void (*strmap_func)(struct strmap *, int) =
+	void (*strmap_clear_func)(struct strmap *, int) =
 		reinitialize ? strmap_partial_clear : strmap_clear;
-	void (*strintmap_func)(struct strintmap *) =
+	void (*strintmap_clear_func)(struct strintmap *) =
 		reinitialize ? strintmap_partial_clear : strintmap_clear;
-	void (*strset_func)(struct strset *) =
+	void (*strset_clear_func)(struct strset *) =
 		reinitialize ? strset_partial_clear : strset_clear;
 
-	/*
-	 * We marked opti->paths with strdup_strings = 0, so that we
-	 * wouldn't have to make another copy of the fullpath created by
-	 * make_traverse_path from setup_path_info().  But, now that we've
-	 * used it and have no other references to these strings, it is time
-	 * to deallocate them.
-	 */
-	free_strmap_strings(&opti->paths);
-	strmap_func(&opti->paths, 1);
+	strmap_clear_func(&opti->paths, 0);
 
 	/*
 	 * All keys and values in opti->conflicted are a subset of those in
 	 * opti->paths.  We don't want to deallocate anything twice, so we
 	 * don't free the keys and we pass 0 for free_values.
 	 */
-	strmap_func(&opti->conflicted, 0);
-
-	/*
-	 * opti->paths_to_free is similar to opti->paths; we created it with
-	 * strdup_strings = 0 to avoid making _another_ copy of the fullpath
-	 * but now that we've used it and have no other references to these
-	 * strings, it is time to deallocate them.  We do so by temporarily
-	 * setting strdup_strings to 1.
-	 */
-	opti->paths_to_free.strdup_strings = 1;
-	string_list_clear(&opti->paths_to_free, 0);
-	opti->paths_to_free.strdup_strings = 0;
+	strmap_clear_func(&opti->conflicted, 0);
 
 	if (opti->attr_index.cache_nr) /* true iff opt->renormalize */
 		discard_index(&opti->attr_index);
 
 	/* Free memory used by various renames maps */
 	for (i = MERGE_SIDE1; i <= MERGE_SIDE2; ++i) {
-		strintmap_func(&renames->dirs_removed[i]);
-		strmap_func(&renames->dir_renames[i], 0);
-		strintmap_func(&renames->relevant_sources[i]);
+		strintmap_clear_func(&renames->dirs_removed[i]);
+		strmap_clear_func(&renames->dir_renames[i], 0);
+		strintmap_clear_func(&renames->relevant_sources[i]);
 		if (!reinitialize)
 			assert(renames->cached_pairs_valid_side == 0);
 		if (i != renames->cached_pairs_valid_side &&
 		    -1 != renames->cached_pairs_valid_side) {
-			strset_func(&renames->cached_target_names[i]);
-			strmap_func(&renames->cached_pairs[i], 1);
-			strset_func(&renames->cached_irrelevant[i]);
+			strset_clear_func(&renames->cached_target_names[i]);
+			strmap_clear_func(&renames->cached_pairs[i], 1);
+			strset_clear_func(&renames->cached_irrelevant[i]);
 			partial_clear_dir_rename_count(&renames->dir_rename_count[i]);
 			if (!reinitialize)
 				strmap_clear(&renames->dir_rename_count[i], 1);
 		}
 	}
 	for (i = MERGE_SIDE1; i <= MERGE_SIDE2; ++i) {
-		strintmap_func(&renames->deferred[i].possible_trivial_merges);
-		strset_func(&renames->deferred[i].target_dirs);
+		strintmap_clear_func(&renames->deferred[i].possible_trivial_merges);
+		strset_clear_func(&renames->deferred[i].target_dirs);
 		renames->deferred[i].trivial_merges_okay = 1; /* 1 == maybe */
 	}
 	renames->cached_pairs_valid_side = 0;
@@ -587,46 +690,40 @@ static void clear_or_reinit_internal_opts(struct merge_options_internal *opti,
 		struct strmap_entry *e;
 
 		/* Release and free each strbuf found in output */
-		strmap_for_each_entry(&opti->output, &iter, e) {
-			struct strbuf *sb = e->value;
-			strbuf_release(sb);
+		strmap_for_each_entry(&opti->conflicts, &iter, e) {
+			struct string_list *list = e->value;
+			for (int i = 0; i < list->nr; i++) {
+				struct logical_conflict_info *info =
+					list->items[i].util;
+				strvec_clear(&info->paths);
+			}
 			/*
-			 * While strictly speaking we don't need to free(sb)
-			 * here because we could pass free_values=1 when
-			 * calling strmap_clear() on opti->output, that would
-			 * require strmap_clear to do another
-			 * strmap_for_each_entry() loop, so we just free it
-			 * while we're iterating anyway.
+			 * While strictly speaking we don't need to
+			 * free(conflicts) here because we could pass
+			 * free_values=1 when calling strmap_clear() on
+			 * opti->conflicts, that would require strmap_clear
+			 * to do another strmap_for_each_entry() loop, so we
+			 * just free it while we're iterating anyway.
 			 */
-			free(sb);
+			string_list_clear(list, 1);
+			free(list);
 		}
-		strmap_clear(&opti->output, 0);
+		strmap_clear(&opti->conflicts, 0);
 	}
+
+	mem_pool_discard(&opti->pool, 0);
+
+	string_list_clear_func(&opti->conflicted_submodules,
+					conflicted_submodule_item_free);
 
 	/* Clean out callback_data as well. */
 	FREE_AND_NULL(renames->callback_data);
 	renames->callback_data_nr = renames->callback_data_alloc = 0;
 }
 
-__attribute__((format (printf, 2, 3)))
-static int err(struct merge_options *opt, const char *err, ...)
-{
-	va_list params;
-	struct strbuf sb = STRBUF_INIT;
-
-	strbuf_addstr(&sb, "error: ");
-	va_start(params, err);
-	strbuf_vaddf(&sb, err, params);
-	va_end(params);
-
-	error("%s", sb.buf);
-	strbuf_release(&sb);
-
-	return -1;
-}
-
 static void format_commit(struct strbuf *sb,
 			  int indent,
+			  struct repository *repo,
 			  struct commit *commit)
 {
 	struct merge_remote_desc *desc;
@@ -640,29 +737,127 @@ static void format_commit(struct strbuf *sb,
 		return;
 	}
 
-	format_commit_message(commit, "%h %s", sb, &ctx);
+	repo_format_commit_message(repo, commit, "%h %s", sb, &ctx);
 	strbuf_addch(sb, '\n');
 }
 
-__attribute__((format (printf, 4, 5)))
+__attribute__((format (printf, 8, 9)))
 static void path_msg(struct merge_options *opt,
-		     const char *path,
+		     enum conflict_and_info_types type,
 		     int omittable_hint, /* skippable under --remerge-diff */
+		     const char *primary_path,
+		     const char *other_path_1, /* may be NULL */
+		     const char *other_path_2, /* may be NULL */
+		     struct string_list *other_paths, /* may be NULL */
 		     const char *fmt, ...)
 {
 	va_list ap;
-	struct strbuf *sb = strmap_get(&opt->priv->output, path);
-	if (!sb) {
-		sb = xmalloc(sizeof(*sb));
-		strbuf_init(sb, 0);
-		strmap_put(&opt->priv->output, path, sb);
+	struct string_list *path_conflicts;
+	struct logical_conflict_info *info;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf *dest;
+	struct strbuf tmp = STRBUF_INIT;
+
+	/* Sanity checks */
+	assert(omittable_hint ==
+	       !starts_with(type_short_descriptions[type], "CONFLICT") ||
+	       type == CONFLICT_DIR_RENAME_SUGGESTED);
+	if (opt->record_conflict_msgs_as_headers && omittable_hint)
+		return; /* Do not record mere hints in headers */
+	if (opt->priv->call_depth && opt->verbosity < 5)
+		return; /* Ignore messages from inner merges */
+
+	/* Ensure path_conflicts (ptr to array of logical_conflict) allocated */
+	path_conflicts = strmap_get(&opt->priv->conflicts, primary_path);
+	if (!path_conflicts) {
+		path_conflicts = xmalloc(sizeof(*path_conflicts));
+		string_list_init_dup(path_conflicts);
+		strmap_put(&opt->priv->conflicts, primary_path, path_conflicts);
 	}
 
+	/* Add a logical_conflict at the end to store info from this call */
+	info = xcalloc(1, sizeof(*info));
+	info->type = type;
+	strvec_init(&info->paths);
+
+	/* Handle the list of paths */
+	strvec_push(&info->paths, primary_path);
+	if (other_path_1)
+		strvec_push(&info->paths, other_path_1);
+	if (other_path_2)
+		strvec_push(&info->paths, other_path_2);
+	if (other_paths)
+		for (int i = 0; i < other_paths->nr; i++)
+		strvec_push(&info->paths, other_paths->items[i].string);
+
+	/* Handle message and its format, in normal case */
+	dest = (opt->record_conflict_msgs_as_headers ? &tmp : &buf);
+
 	va_start(ap, fmt);
-	strbuf_vaddf(sb, fmt, ap);
+	if (opt->priv->call_depth) {
+		strbuf_addchars(dest, ' ', 2);
+		strbuf_addstr(dest, "From inner merge:");
+		strbuf_addchars(dest, ' ', opt->priv->call_depth * 2);
+	}
+	strbuf_vaddf(dest, fmt, ap);
 	va_end(ap);
 
-	strbuf_addch(sb, '\n');
+	/* Handle specialized formatting of message under --remerge-diff */
+	if (opt->record_conflict_msgs_as_headers) {
+		int i_sb = 0, i_tmp = 0;
+
+		/* Start with the specified prefix */
+		if (opt->msg_header_prefix)
+			strbuf_addf(&buf, "%s ", opt->msg_header_prefix);
+
+		/* Copy tmp to sb, adding spaces after newlines */
+		strbuf_grow(&buf, buf.len + 2*tmp.len); /* more than sufficient */
+		for (; i_tmp < tmp.len; i_tmp++, i_sb++) {
+			/* Copy next character from tmp to sb */
+			buf.buf[buf.len + i_sb] = tmp.buf[i_tmp];
+
+			/* If we copied a newline, add a space */
+			if (tmp.buf[i_tmp] == '\n')
+				buf.buf[++i_sb] = ' ';
+		}
+		/* Update length and ensure it's NUL-terminated */
+		buf.len += i_sb;
+		buf.buf[buf.len] = '\0';
+
+		strbuf_release(&tmp);
+	}
+	string_list_append_nodup(path_conflicts, strbuf_detach(&buf, NULL))
+		->util = info;
+}
+
+static struct diff_filespec *pool_alloc_filespec(struct mem_pool *pool,
+						 const char *path)
+{
+	/* Similar to alloc_filespec(), but allocate from pool and reuse path */
+	struct diff_filespec *spec;
+
+	spec = mem_pool_calloc(pool, 1, sizeof(*spec));
+	spec->path = (char*)path; /* spec won't modify it */
+
+	spec->count = 1;
+	spec->is_binary = -1;
+	return spec;
+}
+
+static struct diff_filepair *pool_diff_queue(struct mem_pool *pool,
+					     struct diff_queue_struct *queue,
+					     struct diff_filespec *one,
+					     struct diff_filespec *two)
+{
+	/* Same code as diff_queue(), except allocate from pool */
+	struct diff_filepair *dp;
+
+	dp = mem_pool_calloc(pool, 1, sizeof(*dp));
+	dp->one = one;
+	dp->two = two;
+	if (queue)
+		diff_q(queue, dp);
+	return dp;
 }
 
 /* add a string to a strbuf, but converting "/" to "_" */
@@ -675,13 +870,15 @@ static void add_flattened_path(struct strbuf *out, const char *s)
 			out->buf[i] = '_';
 }
 
-static char *unique_path(struct strmap *existing_paths,
+static char *unique_path(struct merge_options *opt,
 			 const char *path,
 			 const char *branch)
 {
+	char *ret = NULL;
 	struct strbuf newpath = STRBUF_INIT;
 	int suffix = 0;
 	size_t base_len;
+	struct strmap *existing_paths = &opt->priv->paths;
 
 	strbuf_addf(&newpath, "%s~", path);
 	add_flattened_path(&newpath, branch);
@@ -692,7 +889,11 @@ static char *unique_path(struct strmap *existing_paths,
 		strbuf_addf(&newpath, "_%d", suffix++);
 	}
 
-	return strbuf_detach(&newpath, NULL);
+	/* Track the new path in our memory pool */
+	ret = mem_pool_alloc(&opt->priv->pool, newpath.len + 1);
+	memcpy(ret, newpath.buf, newpath.len + 1);
+	strbuf_release(&newpath);
+	return ret;
 }
 
 /*** Function Grouping: functions related to collect_merge_info() ***/
@@ -793,8 +994,9 @@ static void setup_path_info(struct merge_options *opt,
 	assert(!df_conflict || !resolved); /* df_conflict implies !resolved */
 	assert(resolved == (merged_version != NULL));
 
-	mi = xcalloc(1, resolved ? sizeof(struct merged_info) :
-				   sizeof(struct conflict_info));
+	mi = mem_pool_calloc(&opt->priv->pool, 1,
+			     resolved ? sizeof(struct merged_info) :
+					sizeof(struct conflict_info));
 	mi->directory_name = current_dir_name;
 	mi->basename_offset = current_dir_name_len;
 	mi->clean = !!resolved;
@@ -891,11 +1093,11 @@ static void add_pair(struct merge_options *opt,
 			return;
 	}
 
-	one = alloc_filespec(pathname);
-	two = alloc_filespec(pathname);
+	one = pool_alloc_filespec(&opt->priv->pool, pathname);
+	two = pool_alloc_filespec(&opt->priv->pool, pathname);
 	fill_filespec(is_add ? two : one,
 		      &names[names_idx].oid, 1, names[names_idx].mode);
-	diff_queue(&renames->pairs[side], one, two);
+	pool_diff_queue(&opt->priv->pool, &renames->pairs[side], one, two);
 }
 
 static void collect_rename_info(struct merge_options *opt,
@@ -1086,7 +1288,7 @@ static int collect_merge_info_callback(int n,
 	len = traverse_path_len(info, p->pathlen);
 
 	/* +1 in both of the following lines to include the NUL byte */
-	fullpath = xmalloc(len + 1);
+	fullpath = mem_pool_alloc(&opt->priv->pool, len + 1);
 	make_traverse_path(fullpath, len + 1, info, p->path, p->pathlen);
 
 	/*
@@ -1341,7 +1543,7 @@ static int handle_deferred_entries(struct merge_options *opt,
 		copy = renames->deferred[side].possible_trivial_merges;
 		strintmap_init_with_options(&renames->deferred[side].possible_trivial_merges,
 					    0,
-					    NULL,
+					    &opt->priv->pool,
 					    0);
 		strintmap_for_each_entry(&copy, &iter, entry) {
 			const char *path = entry->key;
@@ -1499,7 +1701,6 @@ static int find_first_merges(struct repository *repo,
 	xsnprintf(merged_revision, sizeof(merged_revision), "^%s",
 		  oid_to_hex(&a->object.oid));
 	repo_init_revisions(repo, &revs, NULL);
-	rev_opts.submodule = path;
 	/* FIXME: can't handle linked worktrees in submodules yet */
 	revs.single_worktree = path != NULL;
 	setup_revisions(ARRAY_SIZE(rev_args)-1, rev_args, &revs, &rev_opts);
@@ -1509,7 +1710,7 @@ static int find_first_merges(struct repository *repo,
 		die("revision walk setup failed");
 	while ((commit = get_revision(&revs)) != NULL) {
 		struct object *o = &(commit->object);
-		if (in_merge_bases(b, commit))
+		if (repo_in_merge_bases(repo, b, commit))
 			add_object_array(o, NULL, &merges);
 	}
 	reset_revision_walk();
@@ -1524,7 +1725,7 @@ static int find_first_merges(struct repository *repo,
 		contains_another = 0;
 		for (j = 0; j < merges.nr; j++) {
 			struct commit *m2 = (struct commit *) merges.objects[j].item;
-			if (i != j && in_merge_bases(m2, m1)) {
+			if (i != j && repo_in_merge_bases(repo, m2, m1)) {
 				contains_another = 1;
 				break;
 			}
@@ -1535,6 +1736,7 @@ static int find_first_merges(struct repository *repo,
 	}
 
 	object_array_clear(&merges);
+	release_revisions(&revs);
 	return result->nr;
 }
 
@@ -1545,65 +1747,83 @@ static int merge_submodule(struct merge_options *opt,
 			   const struct object_id *b,
 			   struct object_id *result)
 {
+	struct repository subrepo;
+	struct strbuf sb = STRBUF_INIT;
+	int ret = 0;
 	struct commit *commit_o, *commit_a, *commit_b;
 	int parent_count;
 	struct object_array merges;
-	struct strbuf sb = STRBUF_INIT;
 
 	int i;
 	int search = !opt->priv->call_depth;
+	int sub_not_initialized = 1;
+	int sub_flag = CONFLICT_SUBMODULE_FAILED_TO_MERGE;
 
 	/* store fallback answer in result in case we fail */
 	oidcpy(result, opt->priv->call_depth ? o : a);
 
 	/* we can not handle deletion conflicts */
-	if (is_null_oid(o))
-		return 0;
-	if (is_null_oid(a))
-		return 0;
-	if (is_null_oid(b))
-		return 0;
+	if (is_null_oid(a) || is_null_oid(b))
+		BUG("submodule deleted on one side; this should be handled outside of merge_submodule()");
 
-	if (add_submodule_odb(path)) {
-		path_msg(opt, path, 0,
+	if ((sub_not_initialized = repo_submodule_init(&subrepo,
+		opt->repo, path, null_oid()))) {
+		path_msg(opt, CONFLICT_SUBMODULE_NOT_INITIALIZED, 0,
+			 path, NULL, NULL, NULL,
 			 _("Failed to merge submodule %s (not checked out)"),
 			 path);
-		return 0;
+		sub_flag = CONFLICT_SUBMODULE_NOT_INITIALIZED;
+		goto cleanup;
 	}
 
-	if (!(commit_o = lookup_commit_reference(opt->repo, o)) ||
-	    !(commit_a = lookup_commit_reference(opt->repo, a)) ||
-	    !(commit_b = lookup_commit_reference(opt->repo, b))) {
-		path_msg(opt, path, 0,
+	if (is_null_oid(o)) {
+		path_msg(opt, CONFLICT_SUBMODULE_NULL_MERGE_BASE, 0,
+			 path, NULL, NULL, NULL,
+			 _("Failed to merge submodule %s (no merge base)"),
+			 path);
+		goto cleanup;
+	}
+
+	if (!(commit_o = lookup_commit_reference(&subrepo, o)) ||
+	    !(commit_a = lookup_commit_reference(&subrepo, a)) ||
+	    !(commit_b = lookup_commit_reference(&subrepo, b))) {
+		path_msg(opt, CONFLICT_SUBMODULE_HISTORY_NOT_AVAILABLE, 0,
+			 path, NULL, NULL, NULL,
 			 _("Failed to merge submodule %s (commits not present)"),
 			 path);
-		return 0;
+		sub_flag = CONFLICT_SUBMODULE_HISTORY_NOT_AVAILABLE;
+		goto cleanup;
 	}
 
 	/* check whether both changes are forward */
-	if (!in_merge_bases(commit_o, commit_a) ||
-	    !in_merge_bases(commit_o, commit_b)) {
-		path_msg(opt, path, 0,
+	if (!repo_in_merge_bases(&subrepo, commit_o, commit_a) ||
+	    !repo_in_merge_bases(&subrepo, commit_o, commit_b)) {
+		path_msg(opt, CONFLICT_SUBMODULE_MAY_HAVE_REWINDS, 0,
+			 path, NULL, NULL, NULL,
 			 _("Failed to merge submodule %s "
 			   "(commits don't follow merge-base)"),
 			 path);
-		return 0;
+		goto cleanup;
 	}
 
 	/* Case #1: a is contained in b or vice versa */
-	if (in_merge_bases(commit_a, commit_b)) {
+	if (repo_in_merge_bases(&subrepo, commit_a, commit_b)) {
 		oidcpy(result, b);
-		path_msg(opt, path, 1,
+		path_msg(opt, INFO_SUBMODULE_FAST_FORWARDING, 1,
+			 path, NULL, NULL, NULL,
 			 _("Note: Fast-forwarding submodule %s to %s"),
 			 path, oid_to_hex(b));
-		return 1;
+		ret = 1;
+		goto cleanup;
 	}
-	if (in_merge_bases(commit_b, commit_a)) {
+	if (repo_in_merge_bases(&subrepo, commit_b, commit_a)) {
 		oidcpy(result, a);
-		path_msg(opt, path, 1,
+		path_msg(opt, INFO_SUBMODULE_FAST_FORWARDING, 1,
+			 path, NULL, NULL, NULL,
 			 _("Note: Fast-forwarding submodule %s to %s"),
 			 path, oid_to_hex(a));
-		return 1;
+		ret = 1;
+		goto cleanup;
 	}
 
 	/*
@@ -1615,44 +1835,59 @@ static int merge_submodule(struct merge_options *opt,
 
 	/* Skip the search if makes no sense to the calling context.  */
 	if (!search)
-		return 0;
+		goto cleanup;
 
 	/* find commit which merges them */
-	parent_count = find_first_merges(opt->repo, path, commit_a, commit_b,
+	parent_count = find_first_merges(&subrepo, path, commit_a, commit_b,
 					 &merges);
 	switch (parent_count) {
 	case 0:
-		path_msg(opt, path, 0, _("Failed to merge submodule %s"), path);
+		path_msg(opt, CONFLICT_SUBMODULE_FAILED_TO_MERGE, 0,
+			 path, NULL, NULL, NULL,
+			 _("Failed to merge submodule %s"), path);
 		break;
 
 	case 1:
-		format_commit(&sb, 4,
+		format_commit(&sb, 4, &subrepo,
 			      (struct commit *)merges.objects[0].item);
-		path_msg(opt, path, 0,
+		path_msg(opt, CONFLICT_SUBMODULE_FAILED_TO_MERGE_BUT_POSSIBLE_RESOLUTION, 0,
+			 path, NULL, NULL, NULL,
 			 _("Failed to merge submodule %s, but a possible merge "
-			   "resolution exists:\n%s\n"),
+			   "resolution exists: %s"),
 			 path, sb.buf);
-		path_msg(opt, path, 1,
-			 _("If this is correct simply add it to the index "
-			   "for example\n"
-			   "by using:\n\n"
-			   "  git update-index --cacheinfo 160000 %s \"%s\"\n\n"
-			   "which will accept this suggestion.\n"),
-			 oid_to_hex(&merges.objects[0].item->oid), path);
 		strbuf_release(&sb);
 		break;
 	default:
 		for (i = 0; i < merges.nr; i++)
-			format_commit(&sb, 4,
+			format_commit(&sb, 4, &subrepo,
 				      (struct commit *)merges.objects[i].item);
-		path_msg(opt, path, 0,
+		path_msg(opt, CONFLICT_SUBMODULE_FAILED_TO_MERGE_BUT_POSSIBLE_RESOLUTION, 0,
+			 path, NULL, NULL, NULL,
 			 _("Failed to merge submodule %s, but multiple "
 			   "possible merges exist:\n%s"), path, sb.buf);
 		strbuf_release(&sb);
 	}
 
 	object_array_clear(&merges);
-	return 0;
+cleanup:
+	if (!opt->priv->call_depth && !ret) {
+		struct string_list *csub = &opt->priv->conflicted_submodules;
+		struct conflicted_submodule_item *util;
+		const char *abbrev;
+
+		util = xmalloc(sizeof(*util));
+		util->flag = sub_flag;
+		util->abbrev = NULL;
+		if (!sub_not_initialized) {
+			abbrev = repo_find_unique_abbrev(&subrepo, b, DEFAULT_ABBREV);
+			util->abbrev = xstrdup(abbrev);
+		}
+		string_list_append(csub, path)->util = util;
+	}
+
+	if (!sub_not_initialized)
+		repo_clear(&subrepo);
+	return ret;
 }
 
 static void initialize_attr_index(struct merge_options *opt)
@@ -1667,6 +1902,7 @@ static void initialize_attr_index(struct merge_options *opt)
 	struct index_state *attr_index = &opt->priv->attr_index;
 	struct cache_entry *ce;
 
+	attr_index->repo = opt->repo;
 	attr_index->initialized = 1;
 
 	if (!opt->renormalize)
@@ -1724,7 +1960,7 @@ static int merge_3way(struct merge_options *opt,
 	mmfile_t orig, src1, src2;
 	struct ll_merge_options ll_opts = {0};
 	char *base, *name1, *name2;
-	int merge_status;
+	enum ll_merge_result merge_status;
 
 	if (!opt->priv->attr_index.initialized)
 		initialize_attr_index(opt);
@@ -1768,6 +2004,11 @@ static int merge_3way(struct merge_options *opt,
 	merge_status = ll_merge(result_buf, path, &orig, base,
 				&src1, name1, &src2, name2,
 				&opt->priv->attr_index, &ll_opts);
+	if (merge_status == LL_MERGE_BINARY_CONFLICT)
+		path_msg(opt, CONFLICT_BINARY, 0,
+			 path, NULL, NULL, NULL,
+			 "warning: Cannot merge binary files: %s (%s vs. %s)",
+			 path, name1, name2);
 
 	free(base);
 	free(name1);
@@ -1796,7 +2037,7 @@ static int handle_content_merge(struct merge_options *opt,
 	 * the three blobs to merge on various sides of history.
 	 *
 	 * extra_marker_size is the amount to extend conflict markers in
-	 * ll_merge; this is neeed if we have content merges of content
+	 * ll_merge; this is needed if we have content merges of content
 	 * merges, which happens for example with rename/rename(2to1) and
 	 * rename/add conflicts.
 	 */
@@ -1865,19 +2106,19 @@ static int handle_content_merge(struct merge_options *opt,
 					  &result_buf);
 
 		if ((merge_status < 0) || !result_buf.ptr)
-			ret = err(opt, _("Failed to execute internal merge"));
+			ret = error(_("failed to execute internal merge"));
 
 		if (!ret &&
 		    write_object_file(result_buf.ptr, result_buf.size,
-				      blob_type, &result->oid))
-			ret = err(opt, _("Unable to add %s to database"),
-				  path);
+				      OBJ_BLOB, &result->oid))
+			ret = error(_("unable to add %s to database"), path);
 
 		free(result_buf.ptr);
 		if (ret)
 			return -1;
 		clean &= (merge_status == 0);
-		path_msg(opt, path, 1, _("Auto-merging %s"), path);
+		path_msg(opt, INFO_AUTO_MERGING, 1, path, NULL, NULL, NULL,
+			 _("Auto-merging %s"), path);
 	} else if (S_ISGITLINK(a->mode)) {
 		int two_way = ((S_IFMT & o->mode) != (S_IFMT & a->mode));
 		clean = merge_submodule(opt, pathnames[0],
@@ -1999,7 +2240,7 @@ static char *handle_path_level_conflicts(struct merge_options *opt,
 	 * to ensure that's the case.
 	 */
 	c_info = strmap_get(collisions, new_path);
-	if (c_info == NULL)
+	if (!c_info)
 		BUG("c_info is NULL");
 
 	/*
@@ -2015,21 +2256,24 @@ static char *handle_path_level_conflicts(struct merge_options *opt,
 		c_info->reported_already = 1;
 		strbuf_add_separated_string_list(&collision_paths, ", ",
 						 &c_info->source_files);
-		path_msg(opt, new_path, 0,
-			 _("CONFLICT (implicit dir rename): Existing file/dir "
-			   "at %s in the way of implicit directory rename(s) "
-			   "putting the following path(s) there: %s."),
-		       new_path, collision_paths.buf);
+		path_msg(opt, CONFLICT_DIR_RENAME_FILE_IN_WAY, 0,
+			 new_path, NULL, NULL, &c_info->source_files,
+			 _("CONFLICT (implicit dir rename): Existing "
+			   "file/dir at %s in the way of implicit "
+			   "directory rename(s) putting the following "
+			   "path(s) there: %s."),
+			 new_path, collision_paths.buf);
 		clean = 0;
 	} else if (c_info->source_files.nr > 1) {
 		c_info->reported_already = 1;
 		strbuf_add_separated_string_list(&collision_paths, ", ",
 						 &c_info->source_files);
-		path_msg(opt, new_path, 0,
-			 _("CONFLICT (implicit dir rename): Cannot map more "
-			   "than one path to %s; implicit directory renames "
-			   "tried to put these paths there: %s"),
-		       new_path, collision_paths.buf);
+		path_msg(opt, CONFLICT_DIR_RENAME_COLLISION, 0,
+			 new_path, NULL, NULL, &c_info->source_files,
+			 _("CONFLICT (implicit dir rename): Cannot map "
+			   "more than one path to %s; implicit directory "
+			   "renames tried to put these paths there: %s"),
+			 new_path, collision_paths.buf);
 		clean = 0;
 	}
 
@@ -2083,13 +2327,14 @@ static void get_provisional_directory_renames(struct merge_options *opt,
 			continue;
 
 		if (bad_max == max) {
-			path_msg(opt, source_dir, 0,
-			       _("CONFLICT (directory rename split): "
-				 "Unclear where to rename %s to; it was "
-				 "renamed to multiple other directories, with "
-				 "no destination getting a majority of the "
-				 "files."),
-			       source_dir);
+			path_msg(opt, CONFLICT_DIR_RENAME_SPLIT, 0,
+				 source_dir, NULL, NULL, NULL,
+				 _("CONFLICT (directory rename split): "
+				   "Unclear where to rename %s to; it was "
+				   "renamed to multiple other directories, "
+				   "with no destination getting a majority of "
+				   "the files."),
+				 source_dir);
 			*clean = 0;
 		} else {
 			strmap_put(&renames->dir_renames[side],
@@ -2190,6 +2435,27 @@ static void compute_collisions(struct strmap *collisions,
 	}
 }
 
+static void free_collisions(struct strmap *collisions)
+{
+	struct hashmap_iter iter;
+	struct strmap_entry *entry;
+
+	/* Free each value in the collisions map */
+	strmap_for_each_entry(collisions, &iter, entry) {
+		struct collision_info *info = entry->value;
+		string_list_clear(&info->source_files, 0);
+	}
+	/*
+	 * In compute_collisions(), we set collisions.strdup_strings to 0
+	 * so that we wouldn't have to make another copy of the new_path
+	 * allocated by apply_dir_rename().  But now that we've used them
+	 * and have no other references to these strings, it is time to
+	 * deallocate them.
+	 */
+	free_strmap_strings(collisions);
+	strmap_clear(collisions, 1);
+}
+
 static char *check_for_directory_rename(struct merge_options *opt,
 					const char *path,
 					unsigned side_index,
@@ -2198,18 +2464,23 @@ static char *check_for_directory_rename(struct merge_options *opt,
 					struct strmap *collisions,
 					int *clean_merge)
 {
-	char *new_path = NULL;
+	char *new_path;
 	struct strmap_entry *rename_info;
-	struct strmap_entry *otherinfo = NULL;
+	struct strmap_entry *otherinfo;
 	const char *new_dir;
+	int other_side = 3 - side_index;
 
+	/*
+	 * Cases where we don't have or don't want a directory rename for
+	 * this path.
+	 */
 	if (strmap_empty(dir_renames))
-		return new_path;
+		return NULL;
+	if (strmap_get(&collisions[other_side], path))
+		return NULL;
 	rename_info = check_dir_renamed(path, dir_renames);
 	if (!rename_info)
-		return new_path;
-	/* old_dir = rename_info->key; */
-	new_dir = rename_info->value;
+		return NULL;
 
 	/*
 	 * This next part is a little weird.  We do not want to do an
@@ -2235,9 +2506,11 @@ static char *check_for_directory_rename(struct merge_options *opt,
 	 * As it turns out, this also prevents N-way transient rename
 	 * confusion; See testcases 9c and 9d of t6043.
 	 */
+	new_dir = rename_info->value; /* old_dir = rename_info->key; */
 	otherinfo = strmap_get_entry(dir_rename_exclusions, new_dir);
 	if (otherinfo) {
-		path_msg(opt, rename_info->key, 1,
+		path_msg(opt, INFO_DIR_RENAME_SKIPPED_DUE_TO_RERENAME, 1,
+			 rename_info->key, path, new_dir, NULL,
 			 _("WARNING: Avoiding applying %s -> %s rename "
 			   "to %s, because %s itself was renamed."),
 			 rename_info->key, new_dir, path, new_dir);
@@ -2245,7 +2518,8 @@ static char *check_for_directory_rename(struct merge_options *opt,
 	}
 
 	new_path = handle_path_level_conflicts(opt, path, side_index,
-					       rename_info, collisions);
+					       rename_info,
+					       &collisions[side_index]);
 	*clean_merge &= (new_path != NULL);
 
 	return new_path;
@@ -2293,12 +2567,17 @@ static void apply_directory_rename_modifications(struct merge_options *opt,
 	VERIFY_CI(ci);
 
 	/* Find parent directories missing from opt->priv->paths */
-	cur_path = new_path;
+	cur_path = mem_pool_strdup(&opt->priv->pool, new_path);
+	free((char*)new_path);
+	new_path = (char *)cur_path;
+
 	while (1) {
 		/* Find the parent directory of cur_path */
 		char *last_slash = strrchr(cur_path, '/');
 		if (last_slash) {
-			parent_name = xstrndup(cur_path, last_slash - cur_path);
+			parent_name = mem_pool_strndup(&opt->priv->pool,
+						       cur_path,
+						       last_slash - cur_path);
 		} else {
 			parent_name = opt->priv->toplevel_dir;
 			break;
@@ -2307,7 +2586,6 @@ static void apply_directory_rename_modifications(struct merge_options *opt,
 		/* Look it up in opt->priv->paths */
 		entry = strmap_get_entry(&opt->priv->paths, parent_name);
 		if (entry) {
-			free((char*)parent_name);
 			parent_name = entry->key; /* reuse known pointer */
 			break;
 		}
@@ -2334,16 +2612,41 @@ static void apply_directory_rename_modifications(struct merge_options *opt,
 		parent_name = cur_dir;
 	}
 
-	/*
-	 * We are removing old_path from opt->priv->paths.  old_path also will
-	 * eventually need to be freed, but it may still be used by e.g.
-	 * ci->pathnames.  So, store it in another string-list for now.
-	 */
-	string_list_append(&opt->priv->paths_to_free, old_path);
-
 	assert(ci->filemask == 2 || ci->filemask == 4);
-	assert(ci->dirmask == 0);
-	strmap_remove(&opt->priv->paths, old_path, 0);
+	assert(ci->dirmask == 0 || ci->dirmask == 1);
+	if (ci->dirmask == 0)
+		strmap_remove(&opt->priv->paths, old_path, 0);
+	else {
+		/*
+		 * This file exists on one side, but we still had a directory
+		 * at the old location that we can't remove until after
+		 * processing all paths below it.  So, make a copy of ci in
+		 * new_ci and only put the file information into it.
+		 */
+		new_ci = mem_pool_calloc(&opt->priv->pool, 1, sizeof(*new_ci));
+		memcpy(new_ci, ci, sizeof(*ci));
+		assert(!new_ci->match_mask);
+		new_ci->dirmask = 0;
+		new_ci->stages[1].mode = 0;
+		oidcpy(&new_ci->stages[1].oid, null_oid());
+
+		/*
+		 * Now that we have the file information in new_ci, make sure
+		 * ci only has the directory information.
+		 */
+		ci->filemask = 0;
+		ci->merged.clean = 1;
+		for (i = MERGE_BASE; i <= MERGE_SIDE2; i++) {
+			if (ci->dirmask & (1 << i))
+				continue;
+			/* zero out any entries related to files */
+			ci->stages[i].mode = 0;
+			oidcpy(&ci->stages[i].oid, null_oid());
+		}
+
+		// Now we want to focus on new_ci, so reassign ci to it
+		ci = new_ci;
+	}
 
 	branch_with_new_path   = (ci->filemask == 2) ? opt->branch1 : opt->branch2;
 	branch_with_dir_rename = (ci->filemask == 2) ? opt->branch2 : opt->branch1;
@@ -2374,21 +2677,22 @@ static void apply_directory_rename_modifications(struct merge_options *opt,
 		new_ci->stages[index].mode = ci->stages[index].mode;
 		oidcpy(&new_ci->stages[index].oid, &ci->stages[index].oid);
 
-		free(ci);
 		ci = new_ci;
 	}
 
 	if (opt->detect_directory_renames == MERGE_DIRECTORY_RENAMES_TRUE) {
 		/* Notify user of updated path */
 		if (pair->status == 'A')
-			path_msg(opt, new_path, 1,
+			path_msg(opt, INFO_DIR_RENAME_APPLIED, 1,
+				 new_path, old_path, NULL, NULL,
 				 _("Path updated: %s added in %s inside a "
 				   "directory that was renamed in %s; moving "
 				   "it to %s."),
 				 old_path, branch_with_new_path,
 				 branch_with_dir_rename, new_path);
 		else
-			path_msg(opt, new_path, 1,
+			path_msg(opt, INFO_DIR_RENAME_APPLIED, 1,
+				 new_path, old_path, NULL, NULL,
 				 _("Path updated: %s renamed to %s in %s, "
 				   "inside a directory that was renamed in %s; "
 				   "moving it to %s."),
@@ -2401,7 +2705,8 @@ static void apply_directory_rename_modifications(struct merge_options *opt,
 		 */
 		ci->path_conflict = 1;
 		if (pair->status == 'A')
-			path_msg(opt, new_path, 0,
+			path_msg(opt, CONFLICT_DIR_RENAME_SUGGESTED, 1,
+				 new_path, old_path, NULL, NULL,
 				 _("CONFLICT (file location): %s added in %s "
 				   "inside a directory that was renamed in %s, "
 				   "suggesting it should perhaps be moved to "
@@ -2409,7 +2714,8 @@ static void apply_directory_rename_modifications(struct merge_options *opt,
 				 old_path, branch_with_new_path,
 				 branch_with_dir_rename, new_path);
 		else
-			path_msg(opt, new_path, 0,
+			path_msg(opt, CONFLICT_DIR_RENAME_SUGGESTED, 1,
+				 new_path, old_path, NULL, NULL,
 				 _("CONFLICT (file location): %s renamed to %s "
 				   "in %s, inside a directory that was renamed "
 				   "in %s, suggesting it should perhaps be "
@@ -2527,6 +2833,8 @@ static int process_renames(struct merge_options *opt,
 							   pathnames,
 							   1 + 2 * opt->priv->call_depth,
 							   &merged);
+			if (clean_merge < 0)
+				return -1;
 			if (!clean_merge &&
 			    merged.mode == side1->stages[1].mode &&
 			    oideq(&merged.oid, &side1->stages[1].oid))
@@ -2565,7 +2873,8 @@ static int process_renames(struct merge_options *opt,
 			 * and remove the setting of base->path_conflict to 1.
 			 */
 			base->path_conflict = 1;
-			path_msg(opt, oldpath, 0,
+			path_msg(opt, CONFLICT_RENAME_RENAME, 0,
+				 pathnames[0], pathnames[1], pathnames[2], NULL,
 				 _("CONFLICT (rename/rename): %s renamed to "
 				   "%s in %s and to %s in %s."),
 				 pathnames[0],
@@ -2635,7 +2944,7 @@ static int process_renames(struct merge_options *opt,
 			struct version_info merged;
 
 			struct conflict_info *base, *side1, *side2;
-			unsigned clean;
+			int clean;
 
 			pathnames[0] = oldpath;
 			pathnames[other_source_index] = oldpath;
@@ -2656,11 +2965,14 @@ static int process_renames(struct merge_options *opt,
 						     pathnames,
 						     1 + 2 * opt->priv->call_depth,
 						     &merged);
+			if (clean < 0)
+				return -1;
 
 			memcpy(&newinfo->stages[target_index], &merged,
 			       sizeof(merged));
 			if (!clean) {
-				path_msg(opt, newpath, 0,
+				path_msg(opt, CONFLICT_RENAME_COLLIDES, 0,
+					 newpath, oldpath, NULL, NULL,
 					 _("CONFLICT (rename involved in "
 					   "collision): rename of %s -> %s has "
 					   "content conflicts AND collides "
@@ -2679,7 +2991,8 @@ static int process_renames(struct merge_options *opt,
 			 */
 
 			newinfo->path_conflict = 1;
-			path_msg(opt, newpath, 0,
+			path_msg(opt, CONFLICT_RENAME_DELETE, 0,
+				 newpath, oldpath, NULL, NULL,
 				 _("CONFLICT (rename/delete): %s renamed "
 				   "to %s in %s, but deleted in %s."),
 				 oldpath, newpath, rename_branch, delete_branch);
@@ -2703,7 +3016,8 @@ static int process_renames(struct merge_options *opt,
 			} else if (source_deleted) {
 				/* rename/delete */
 				newinfo->path_conflict = 1;
-				path_msg(opt, newpath, 0,
+				path_msg(opt, CONFLICT_RENAME_DELETE, 0,
+					 newpath, oldpath, NULL, NULL,
 					 _("CONFLICT (rename/delete): %s renamed"
 					   " to %s in %s, but deleted in %s."),
 					 oldpath, newpath,
@@ -2802,10 +3116,23 @@ static void use_cached_pairs(struct merge_options *opt,
 		if (!new_name)
 			new_name = old_name;
 
+		/*
+		 * cached_pairs has *copies* of old_name and new_name,
+		 * because it has to persist across merges.  Since
+		 * pool_alloc_filespec() will just re-use the existing
+		 * filenames, which will also get re-used by
+		 * opt->priv->paths if they become renames, and then
+		 * get freed at the end of the merge, that would leave
+		 * the copy in cached_pairs dangling.  Avoid this by
+		 * making a copy here.
+		 */
+		old_name = mem_pool_strdup(&opt->priv->pool, old_name);
+		new_name = mem_pool_strdup(&opt->priv->pool, new_name);
+
 		/* We don't care about oid/mode, only filenames and status */
-		one = alloc_filespec(old_name);
-		two = alloc_filespec(new_name);
-		diff_queue(pairs, one, two);
+		one = pool_alloc_filespec(&opt->priv->pool, old_name);
+		two = pool_alloc_filespec(&opt->priv->pool, new_name);
+		pool_diff_queue(&opt->priv->pool, pairs, one, two);
 		pairs->queue[pairs->nr-1]->status = entry->value ? 'R' : 'D';
 	}
 }
@@ -2913,6 +3240,7 @@ static int detect_regular_renames(struct merge_options *opt,
 	diff_queued_diff = renames->pairs[side_index];
 	trace2_region_enter("diff", "diffcore_rename", opt->repo);
 	diffcore_rename_extended(&diff_opts,
+				 &opt->priv->pool,
 				 &renames->relevant_sources[side_index],
 				 &renames->dirs_removed[side_index],
 				 &renames->dir_rename_count[side_index],
@@ -2944,18 +3272,15 @@ static int detect_regular_renames(struct merge_options *opt,
 static int collect_renames(struct merge_options *opt,
 			   struct diff_queue_struct *result,
 			   unsigned side_index,
+			   struct strmap *collisions,
 			   struct strmap *dir_renames_for_side,
 			   struct strmap *rename_exclusions)
 {
 	int i, clean = 1;
-	struct strmap collisions;
 	struct diff_queue_struct *side_pairs;
-	struct hashmap_iter iter;
-	struct strmap_entry *entry;
 	struct rename_info *renames = &opt->priv->renames;
 
 	side_pairs = &renames->pairs[side_index];
-	compute_collisions(&collisions, dir_renames_for_side, side_pairs);
 
 	for (i = 0; i < side_pairs->nr; ++i) {
 		struct diff_filepair *p = side_pairs->queue[i];
@@ -2963,7 +3288,7 @@ static int collect_renames(struct merge_options *opt,
 
 		if (p->status != 'A' && p->status != 'R') {
 			possibly_cache_new_pair(renames, p, side_index, NULL);
-			diff_free_filepair(p);
+			pool_diff_free_filepair(&opt->priv->pool, p);
 			continue;
 		}
 
@@ -2971,12 +3296,12 @@ static int collect_renames(struct merge_options *opt,
 						      side_index,
 						      dir_renames_for_side,
 						      rename_exclusions,
-						      &collisions,
+						      collisions,
 						      &clean);
 
 		possibly_cache_new_pair(renames, p, side_index, new_path);
 		if (p->status != 'R' && !new_path) {
-			diff_free_filepair(p);
+			pool_diff_free_filepair(&opt->priv->pool, p);
 			continue;
 		}
 
@@ -2997,40 +3322,27 @@ static int collect_renames(struct merge_options *opt,
 		result->queue[result->nr++] = p;
 	}
 
-	/* Free each value in the collisions map */
-	strmap_for_each_entry(&collisions, &iter, entry) {
-		struct collision_info *info = entry->value;
-		string_list_clear(&info->source_files, 0);
-	}
-	/*
-	 * In compute_collisions(), we set collisions.strdup_strings to 0
-	 * so that we wouldn't have to make another copy of the new_path
-	 * allocated by apply_dir_rename().  But now that we've used them
-	 * and have no other references to these strings, it is time to
-	 * deallocate them.
-	 */
-	free_strmap_strings(&collisions);
-	strmap_clear(&collisions, 1);
 	return clean;
 }
 
-static int detect_and_process_renames(struct merge_options *opt,
-				      struct tree *merge_base,
-				      struct tree *side1,
-				      struct tree *side2)
+static int detect_and_process_renames(struct merge_options *opt)
 {
-	struct diff_queue_struct combined;
+	struct diff_queue_struct combined = { 0 };
 	struct rename_info *renames = &opt->priv->renames;
-	int need_dir_renames, s, clean = 1;
+	struct strmap collisions[3];
+	int need_dir_renames, s, i, clean = 1;
 	unsigned detection_run = 0;
 
-	memset(&combined, 0, sizeof(combined));
 	if (!possible_renames(renames))
 		goto cleanup;
 
 	trace2_region_enter("merge", "regular renames", opt->repo);
 	detection_run |= detect_regular_renames(opt, MERGE_SIDE1);
 	detection_run |= detect_regular_renames(opt, MERGE_SIDE2);
+	if (renames->needed_limit) {
+		renames->cached_pairs_valid_side = 0;
+		renames->redo_after_renames = 0;
+	}
 	if (renames->redo_after_renames && detection_run) {
 		int i, side;
 		struct diff_filepair *p;
@@ -3067,12 +3379,22 @@ static int detect_and_process_renames(struct merge_options *opt,
 	ALLOC_GROW(combined.queue,
 		   renames->pairs[1].nr + renames->pairs[2].nr,
 		   combined.alloc);
+	for (i = MERGE_SIDE1; i <= MERGE_SIDE2; i++) {
+		int other_side = 3 - i;
+		compute_collisions(&collisions[i],
+				   &renames->dir_renames[other_side],
+				   &renames->pairs[i]);
+	}
 	clean &= collect_renames(opt, &combined, MERGE_SIDE1,
+				 collisions,
 				 &renames->dir_renames[2],
 				 &renames->dir_renames[1]);
 	clean &= collect_renames(opt, &combined, MERGE_SIDE2,
+				 collisions,
 				 &renames->dir_renames[1],
 				 &renames->dir_renames[2]);
+	for (i = MERGE_SIDE1; i <= MERGE_SIDE2; i++)
+		free_collisions(&collisions[i]);
 	STABLE_QSORT(combined.queue, combined.nr, compare_pairs);
 	trace2_region_leave("merge", "directory renames", opt->repo);
 
@@ -3094,7 +3416,7 @@ cleanup:
 		side_pairs = &renames->pairs[s];
 		for (i = 0; i < side_pairs->nr; ++i) {
 			struct diff_filepair *p = side_pairs->queue[i];
-			diff_free_filepair(p);
+			pool_diff_free_filepair(&opt->priv->pool, p);
 		}
 	}
 
@@ -3104,12 +3426,9 @@ simple_cleanup:
 		free(renames->pairs[s].queue);
 		DIFF_QUEUE_CLEAR(&renames->pairs[s]);
 	}
-	if (combined.nr) {
-		int i;
-		for (i = 0; i < combined.nr; i++)
-			diff_free_filepair(combined.queue[i]);
-		free(combined.queue);
-	}
+	for (i = 0; i < combined.nr; i++)
+		pool_diff_free_filepair(&opt->priv->pool, combined.queue[i]);
+	free(combined.queue);
 
 	return clean;
 }
@@ -3170,19 +3489,18 @@ static int sort_dirs_next_to_their_children(const char *one, const char *two)
 		return c1 - c2;
 }
 
-static int read_oid_strbuf(struct merge_options *opt,
-			   const struct object_id *oid,
+static int read_oid_strbuf(const struct object_id *oid,
 			   struct strbuf *dst)
 {
 	void *buf;
 	enum object_type type;
 	unsigned long size;
-	buf = read_object_file(oid, &type, &size);
+	buf = repo_read_object_file(the_repository, oid, &type, &size);
 	if (!buf)
-		return err(opt, _("cannot read object %s"), oid_to_hex(oid));
+		return error(_("cannot read object %s"), oid_to_hex(oid));
 	if (type != OBJ_BLOB) {
 		free(buf);
-		return err(opt, _("object %s is not a blob"), oid_to_hex(oid));
+		return error(_("object %s is not a blob"), oid_to_hex(oid));
 	}
 	strbuf_attach(dst, buf, size, size + 1);
 	return 0;
@@ -3206,8 +3524,8 @@ static int blob_unchanged(struct merge_options *opt,
 	if (oideq(&base->oid, &side->oid))
 		return 1;
 
-	if (read_oid_strbuf(opt, &base->oid, &basebuf) ||
-	    read_oid_strbuf(opt, &side->oid, &sidebuf))
+	if (read_oid_strbuf(&base->oid, &basebuf) ||
+	    read_oid_strbuf(&side->oid, &sidebuf))
 		goto error_return;
 	/*
 	 * Note: binary | is used so that both renormalizations are
@@ -3279,15 +3597,15 @@ static int tree_entry_order(const void *a_, const void *b_)
 				 b->string, strlen(b->string), bmi->result.mode);
 }
 
-static void write_tree(struct object_id *result_oid,
-		       struct string_list *versions,
-		       unsigned int offset,
-		       size_t hash_size)
+static int write_tree(struct object_id *result_oid,
+		      struct string_list *versions,
+		      unsigned int offset,
+		      size_t hash_size)
 {
 	size_t maxlen = 0, extra;
 	unsigned int nr;
 	struct strbuf buf = STRBUF_INIT;
-	int i;
+	int i, ret = 0;
 
 	assert(offset <= versions->nr);
 	nr = versions->nr - offset;
@@ -3313,8 +3631,10 @@ static void write_tree(struct object_id *result_oid,
 	}
 
 	/* Write this object file out, and record in result_oid */
-	write_object_file(buf.buf, buf.len, tree_type, result_oid);
+	if (write_object_file(buf.buf, buf.len, OBJ_TREE, result_oid))
+		ret = -1;
 	strbuf_release(&buf);
+	return ret;
 }
 
 static void record_entry_for_tree(struct directory_versions *dir_metadata,
@@ -3333,13 +3653,13 @@ static void record_entry_for_tree(struct directory_versions *dir_metadata,
 			   basename)->util = &mi->result;
 }
 
-static void write_completed_directory(struct merge_options *opt,
-				      const char *new_directory_name,
-				      struct directory_versions *info)
+static int write_completed_directory(struct merge_options *opt,
+				     const char *new_directory_name,
+				     struct directory_versions *info)
 {
 	const char *prev_dir;
 	struct merged_info *dir_info = NULL;
-	unsigned int offset;
+	unsigned int offset, ret = 0;
 
 	/*
 	 * Some explanation of info->versions and info->offsets...
@@ -3425,7 +3745,7 @@ static void write_completed_directory(struct merge_options *opt,
 	 * strcmp here.)
 	 */
 	if (new_directory_name == info->last_directory)
-		return;
+		return 0;
 
 	/*
 	 * If we are just starting (last_directory is NULL), or last_directory
@@ -3447,7 +3767,7 @@ static void write_completed_directory(struct merge_options *opt,
 		 */
 		string_list_append(&info->offsets,
 				   info->last_directory)->util = (void*)offset;
-		return;
+		return 0;
 	}
 
 	/*
@@ -3477,8 +3797,9 @@ static void write_completed_directory(struct merge_options *opt,
 		 */
 		dir_info->is_null = 0;
 		dir_info->result.mode = S_IFDIR;
-		write_tree(&dir_info->result.oid, &info->versions, offset,
-			   opt->repo->hash_algo->rawsz);
+		if (write_tree(&dir_info->result.oid, &info->versions, offset,
+			       opt->repo->hash_algo->rawsz) < 0)
+			ret = -1;
 	}
 
 	/*
@@ -3506,13 +3827,15 @@ static void write_completed_directory(struct merge_options *opt,
 	/* And, of course, we need to update last_directory to match. */
 	info->last_directory = new_directory_name;
 	info->last_directory_len = strlen(info->last_directory);
+
+	return ret;
 }
 
 /* Per entry merge function */
-static void process_entry(struct merge_options *opt,
-			  const char *path,
-			  struct conflict_info *ci,
-			  struct directory_versions *dir_metadata)
+static int process_entry(struct merge_options *opt,
+			 const char *path,
+			 struct conflict_info *ci,
+			 struct directory_versions *dir_metadata)
 {
 	int df_file_index = 0;
 
@@ -3526,7 +3849,7 @@ static void process_entry(struct merge_options *opt,
 		record_entry_for_tree(dir_metadata, path, &ci->merged);
 		if (ci->filemask == 0)
 			/* nothing else to handle */
-			return;
+			return 0;
 		assert(ci->df_conflict);
 	}
 
@@ -3573,7 +3896,7 @@ static void process_entry(struct merge_options *opt,
 		 */
 		if (ci->filemask == 1) {
 			ci->filemask = 0;
-			return;
+			return 0;
 		}
 
 		/*
@@ -3581,7 +3904,8 @@ static void process_entry(struct merge_options *opt,
 		 * the directory to remain here, so we need to move this
 		 * path to some new location.
 		 */
-		CALLOC_ARRAY(new_ci, 1);
+		new_ci = mem_pool_calloc(&opt->priv->pool, 1, sizeof(*new_ci));
+
 		/* We don't really want new_ci->merged.result copied, but it'll
 		 * be overwritten below so it doesn't matter.  We also don't
 		 * want any directory mode/oid values copied, but we'll zero
@@ -3606,10 +3930,11 @@ static void process_entry(struct merge_options *opt,
 		 */
 		df_file_index = (ci->dirmask & (1 << 1)) ? 2 : 1;
 		branch = (df_file_index == 1) ? opt->branch1 : opt->branch2;
-		path = unique_path(&opt->priv->paths, path, branch);
+		path = unique_path(opt, path, branch);
 		strmap_put(&opt->priv->paths, path, new_ci);
 
-		path_msg(opt, path, 0,
+		path_msg(opt, CONFLICT_FILE_DIRECTORY, 0,
+			 path, old_path, NULL, NULL,
 			 _("CONFLICT (file/directory): directory in the way "
 			   "of %s from %s; moving it to %s instead."),
 			 old_path, branch, path);
@@ -3673,7 +3998,8 @@ static void process_entry(struct merge_options *opt,
 			const char *a_path = NULL, *b_path = NULL;
 			int rename_a = 0, rename_b = 0;
 
-			new_ci = xmalloc(sizeof(*new_ci));
+			new_ci = mem_pool_alloc(&opt->priv->pool,
+						sizeof(*new_ci));
 
 			if (S_ISREG(a_mode))
 				rename_a = 1;
@@ -3684,15 +4010,23 @@ static void process_entry(struct merge_options *opt,
 				rename_b = 1;
 			}
 
+			if (rename_a)
+				a_path = unique_path(opt, path, opt->branch1);
+			if (rename_b)
+				b_path = unique_path(opt, path, opt->branch2);
+
 			if (rename_a && rename_b) {
-				path_msg(opt, path, 0,
+				path_msg(opt, CONFLICT_DISTINCT_MODES, 0,
+					 path, a_path, b_path, NULL,
 					 _("CONFLICT (distinct types): %s had "
 					   "different types on each side; "
 					   "renamed both of them so each can "
 					   "be recorded somewhere."),
 					 path);
 			} else {
-				path_msg(opt, path, 0,
+				path_msg(opt, CONFLICT_DISTINCT_MODES, 0,
+					 path, rename_a ? a_path : b_path,
+					 NULL, NULL,
 					 _("CONFLICT (distinct types): %s had "
 					   "different types on each side; "
 					   "renamed one of them so each can be "
@@ -3729,30 +4063,15 @@ static void process_entry(struct merge_options *opt,
 
 			/* Insert entries into opt->priv_paths */
 			assert(rename_a || rename_b);
-			if (rename_a) {
-				a_path = unique_path(&opt->priv->paths,
-						     path, opt->branch1);
+			if (rename_a)
 				strmap_put(&opt->priv->paths, a_path, ci);
-			}
 
-			if (rename_b)
-				b_path = unique_path(&opt->priv->paths,
-						     path, opt->branch2);
-			else
+			if (!rename_b)
 				b_path = path;
 			strmap_put(&opt->priv->paths, b_path, new_ci);
 
-			if (rename_a && rename_b) {
+			if (rename_a && rename_b)
 				strmap_remove(&opt->priv->paths, path, 0);
-				/*
-				 * We removed path from opt->priv->paths.  path
-				 * will also eventually need to be freed, but
-				 * it may still be used by e.g.  ci->pathnames.
-				 * So, store it in another string-list for now.
-				 */
-				string_list_append(&opt->priv->paths_to_free,
-						   path);
-			}
 
 			/*
 			 * Do special handling for b_path since process_entry()
@@ -3772,7 +4091,7 @@ static void process_entry(struct merge_options *opt,
 	} else if (ci->filemask >= 6) {
 		/* Need a two-way or three-way content merge */
 		struct version_info merged_file;
-		unsigned clean_merge;
+		int clean_merge;
 		struct version_info *o = &ci->stages[0];
 		struct version_info *a = &ci->stages[1];
 		struct version_info *b = &ci->stages[2];
@@ -3781,6 +4100,8 @@ static void process_entry(struct merge_options *opt,
 						   ci->pathnames,
 						   opt->priv->call_depth * 2,
 						   &merged_file);
+		if (clean_merge < 0)
+			return -1;
 		ci->merged.clean = clean_merge &&
 				   !ci->df_conflict && !ci->path_conflict;
 		ci->merged.result.mode = merged_file.mode;
@@ -3798,7 +4119,8 @@ static void process_entry(struct merge_options *opt,
 				reason = _("add/add");
 			if (S_ISGITLINK(merged_file.mode))
 				reason = _("submodule");
-			path_msg(opt, path, 0,
+			path_msg(opt, CONFLICT_CONTENTS, 0,
+				 path, NULL, NULL, NULL,
 				 _("CONFLICT (%s): Merge conflict in %s"),
 				 reason, path);
 		}
@@ -3818,9 +4140,22 @@ static void process_entry(struct merge_options *opt,
 		if (opt->renormalize &&
 		    blob_unchanged(opt, &ci->stages[0], &ci->stages[side],
 				   path)) {
-			ci->merged.is_null = 1;
-			ci->merged.clean = 1;
-			assert(!ci->df_conflict && !ci->path_conflict);
+			if (!ci->path_conflict) {
+				/*
+				 * Blob unchanged after renormalization, so
+				 * there's no modify/delete conflict after all;
+				 * we can just remove the file.
+				 */
+				ci->merged.is_null = 1;
+				ci->merged.clean = 1;
+				 /*
+				  * file goes away => even if there was a
+				  * directory/file conflict there isn't one now.
+				  */
+				ci->df_conflict = 0;
+			} else {
+				/* rename/delete, so conflict remains */
+			}
 		} else if (ci->path_conflict &&
 			   oideq(&ci->stages[0].oid, &ci->stages[side].oid)) {
 			/*
@@ -3829,7 +4164,8 @@ static void process_entry(struct merge_options *opt,
 			 * since the contents were not modified.
 			 */
 		} else {
-			path_msg(opt, path, 0,
+			path_msg(opt, CONFLICT_MODIFY_DELETE, 0,
+				 path, NULL, NULL, NULL,
 				 _("CONFLICT (modify/delete): %s deleted in %s "
 				   "and modified in %s.  Version %s of %s left "
 				   "in tree."),
@@ -3861,6 +4197,7 @@ static void process_entry(struct merge_options *opt,
 
 	/* Record metadata for ci->merged in dir_metadata */
 	record_entry_for_tree(dir_metadata, path, &ci->merged);
+	return 0;
 }
 
 static void prefetch_for_content_merges(struct merge_options *opt,
@@ -3869,7 +4206,7 @@ static void prefetch_for_content_merges(struct merge_options *opt,
 	struct string_list_item *e;
 	struct oid_array to_fetch = OID_ARRAY_INIT;
 
-	if (opt->repo != the_repository || !has_promisor_remote())
+	if (opt->repo != the_repository || !repo_has_promisor_remote(the_repository))
 		return;
 
 	for (e = &plist->items[plist->nr-1]; e >= plist->items; --e) {
@@ -3911,8 +4248,8 @@ static void prefetch_for_content_merges(struct merge_options *opt,
 	oid_array_clear(&to_fetch);
 }
 
-static void process_entries(struct merge_options *opt,
-			    struct object_id *result_oid)
+static int process_entries(struct merge_options *opt,
+			   struct object_id *result_oid)
 {
 	struct hashmap_iter iter;
 	struct strmap_entry *e;
@@ -3921,11 +4258,12 @@ static void process_entries(struct merge_options *opt,
 	struct directory_versions dir_metadata = { STRING_LIST_INIT_NODUP,
 						   STRING_LIST_INIT_NODUP,
 						   NULL, 0 };
+	int ret = 0;
 
 	trace2_region_enter("merge", "process_entries setup", opt->repo);
 	if (strmap_empty(&opt->priv->paths)) {
 		oidcpy(result_oid, opt->repo->hash_algo->empty_tree);
-		return;
+		return 0;
 	}
 
 	/* Hack to pre-allocate plist to the desired size */
@@ -3967,13 +4305,19 @@ static void process_entries(struct merge_options *opt,
 		 */
 		struct merged_info *mi = entry->util;
 
-		write_completed_directory(opt, mi->directory_name,
-					  &dir_metadata);
+		if (write_completed_directory(opt, mi->directory_name,
+					      &dir_metadata) < 0) {
+			ret = -1;
+			goto cleanup;
+		}
 		if (mi->clean)
 			record_entry_for_tree(&dir_metadata, path, mi);
 		else {
 			struct conflict_info *ci = (struct conflict_info *)mi;
-			process_entry(opt, path, ci, &dir_metadata);
+			if (process_entry(opt, path, ci, &dir_metadata) < 0) {
+				ret = -1;
+				goto cleanup;
+			};
 		}
 	}
 	trace2_region_leave("merge", "processing", opt->repo);
@@ -3981,19 +4325,23 @@ static void process_entries(struct merge_options *opt,
 	trace2_region_enter("merge", "process_entries cleanup", opt->repo);
 	if (dir_metadata.offsets.nr != 1 ||
 	    (uintptr_t)dir_metadata.offsets.items[0].util != 0) {
-		printf("dir_metadata.offsets.nr = %d (should be 1)\n",
-		       dir_metadata.offsets.nr);
+		printf("dir_metadata.offsets.nr = %"PRIuMAX" (should be 1)\n",
+		       (uintmax_t)dir_metadata.offsets.nr);
 		printf("dir_metadata.offsets.items[0].util = %u (should be 0)\n",
 		       (unsigned)(uintptr_t)dir_metadata.offsets.items[0].util);
 		fflush(stdout);
 		BUG("dir_metadata accounting completely off; shouldn't happen");
 	}
-	write_tree(result_oid, &dir_metadata.versions, 0,
-		   opt->repo->hash_algo->rawsz);
+	if (write_tree(result_oid, &dir_metadata.versions, 0,
+		       opt->repo->hash_algo->rawsz) < 0)
+		ret = -1;
+cleanup:
 	string_list_clear(&plist, 0);
 	string_list_clear(&dir_metadata.versions, 0);
 	string_list_clear(&dir_metadata.offsets, 0);
 	trace2_region_leave("merge", "process_entries cleanup", opt->repo);
+
+	return ret;
 }
 
 /*** Function Grouping: functions related to merge_switch_to_result() ***/
@@ -4029,11 +4377,7 @@ static int checkout(struct merge_options *opt,
 	unpack_opts.quiet = 0; /* FIXME: sequencer might want quiet? */
 	unpack_opts.verbose_update = (opt->verbosity > 2);
 	unpack_opts.fn = twoway_merge;
-	if (1/* FIXME: opts->overwrite_ignore*/) {
-		CALLOC_ARRAY(unpack_opts.dir, 1);
-		unpack_opts.dir->flags |= DIR_SHOW_IGNORED;
-		setup_standard_excludes(unpack_opts.dir);
-	}
+	unpack_opts.preserve_ignored = 0; /* FIXME: !opts->overwrite_ignore */
 	parse_tree(prev);
 	init_tree_desc(&trees[0], prev->buffer, prev->size);
 	parse_tree(next);
@@ -4041,8 +4385,6 @@ static int checkout(struct merge_options *opt,
 
 	ret = unpack_trees(2, trees, &unpack_opts);
 	clear_unpack_trees_porcelain(&unpack_opts);
-	dir_clear(unpack_opts.dir);
-	FREE_AND_NULL(unpack_opts.dir);
 	return ret;
 }
 
@@ -4057,6 +4399,21 @@ static int record_conflicted_index_entries(struct merge_options *opt)
 
 	if (strmap_empty(&opt->priv->conflicted))
 		return 0;
+
+	/*
+	 * We are in a conflicted state. These conflicts might be inside
+	 * sparse-directory entries, so check if any entries are outside
+	 * of the sparse-checkout cone preemptively.
+	 *
+	 * We set original_cache_nr below, but that might change if
+	 * index_name_pos() calls ask for paths within sparse directories.
+	 */
+	strmap_for_each_entry(&opt->priv->conflicted, &iter, e) {
+		if (!path_in_sparse_checkout(e->key, index)) {
+			ensure_full_index(index);
+			break;
+		}
+	}
 
 	/* If any entries have skip_worktree set, we'll have to check 'em out */
 	state.force = 1;
@@ -4108,22 +4465,8 @@ static int record_conflicted_index_entries(struct merge_options *opt)
 			 * the CE_SKIP_WORKTREE bit and manually write those
 			 * files to the working disk here.
 			 */
-			if (ce_skip_worktree(ce)) {
-				struct stat st;
-
-				if (!lstat(path, &st)) {
-					char *new_name = unique_path(&opt->priv->paths,
-								     path,
-								     "cruft");
-
-					path_msg(opt, path, 1,
-						 _("Note: %s not up to date and in way of checking out conflicted version; old copy renamed to %s"),
-						 path, new_name);
-					errs |= rename(path, new_name);
-					free(new_name);
-				}
+			if (ce_skip_worktree(ce))
 				errs |= checkout_entry(ce, &state, NULL, NULL);
-			}
 
 			/*
 			 * Mark this cache entry for removal and instead add
@@ -4165,6 +4508,152 @@ static int record_conflicted_index_entries(struct merge_options *opt)
 	return errs;
 }
 
+static void print_submodule_conflict_suggestion(struct string_list *csub) {
+	struct string_list_item *item;
+	struct strbuf msg = STRBUF_INIT;
+	struct strbuf tmp = STRBUF_INIT;
+	struct strbuf subs = STRBUF_INIT;
+
+	if (!csub->nr)
+		return;
+
+	strbuf_add_separated_string_list(&subs, " ", csub);
+	for_each_string_list_item(item, csub) {
+		struct conflicted_submodule_item *util = item->util;
+
+		/*
+		 * NEEDSWORK: The steps to resolve these errors deserve a more
+		 * detailed explanation than what is currently printed below.
+		 */
+		if (util->flag == CONFLICT_SUBMODULE_NOT_INITIALIZED ||
+		    util->flag == CONFLICT_SUBMODULE_HISTORY_NOT_AVAILABLE)
+			continue;
+
+		/*
+		 * TRANSLATORS: This is a line of advice to resolve a merge
+		 * conflict in a submodule. The first argument is the submodule
+		 * name, and the second argument is the abbreviated id of the
+		 * commit that needs to be merged.  For example:
+		 *  - go to submodule (mysubmodule), and either merge commit abc1234"
+		 */
+		strbuf_addf(&tmp, _(" - go to submodule (%s), and either merge commit %s\n"
+				    "   or update to an existing commit which has merged those changes\n"),
+			    item->string, util->abbrev);
+	}
+
+	/*
+	 * TRANSLATORS: This is a detailed message for resolving submodule
+	 * conflicts.  The first argument is string containing one step per
+	 * submodule.  The second is a space-separated list of submodule names.
+	 */
+	strbuf_addf(&msg,
+		    _("Recursive merging with submodules currently only supports trivial cases.\n"
+		      "Please manually handle the merging of each conflicted submodule.\n"
+		      "This can be accomplished with the following steps:\n"
+		      "%s"
+		      " - come back to superproject and run:\n\n"
+		      "      git add %s\n\n"
+		      "   to record the above merge or update\n"
+		      " - resolve any other conflicts in the superproject\n"
+		      " - commit the resulting index in the superproject\n"),
+		    tmp.buf, subs.buf);
+
+	printf("%s", msg.buf);
+
+	strbuf_release(&subs);
+	strbuf_release(&tmp);
+	strbuf_release(&msg);
+}
+
+void merge_display_update_messages(struct merge_options *opt,
+				   int detailed,
+				   struct merge_result *result)
+{
+	struct merge_options_internal *opti = result->priv;
+	struct hashmap_iter iter;
+	struct strmap_entry *e;
+	struct string_list olist = STRING_LIST_INIT_NODUP;
+
+	if (opt->record_conflict_msgs_as_headers)
+		BUG("Either display conflict messages or record them as headers, not both");
+
+	trace2_region_enter("merge", "display messages", opt->repo);
+
+	/* Hack to pre-allocate olist to the desired size */
+	ALLOC_GROW(olist.items, strmap_get_size(&opti->conflicts),
+		   olist.alloc);
+
+	/* Put every entry from output into olist, then sort */
+	strmap_for_each_entry(&opti->conflicts, &iter, e) {
+		string_list_append(&olist, e->key)->util = e->value;
+	}
+	string_list_sort(&olist);
+
+	/* Iterate over the items, printing them */
+	for (int path_nr = 0; path_nr < olist.nr; ++path_nr) {
+		struct string_list *conflicts = olist.items[path_nr].util;
+		for (int i = 0; i < conflicts->nr; i++) {
+			struct logical_conflict_info *info =
+				conflicts->items[i].util;
+
+			if (detailed) {
+				printf("%lu", (unsigned long)info->paths.nr);
+				putchar('\0');
+				for (int n = 0; n < info->paths.nr; n++) {
+					fputs(info->paths.v[n], stdout);
+					putchar('\0');
+				}
+				fputs(type_short_descriptions[info->type],
+				      stdout);
+				putchar('\0');
+			}
+			puts(conflicts->items[i].string);
+			if (detailed)
+				putchar('\0');
+		}
+	}
+	string_list_clear(&olist, 0);
+
+	print_submodule_conflict_suggestion(&opti->conflicted_submodules);
+
+	/* Also include needed rename limit adjustment now */
+	diff_warn_rename_limit("merge.renamelimit",
+			       opti->renames.needed_limit, 0);
+
+	trace2_region_leave("merge", "display messages", opt->repo);
+}
+
+void merge_get_conflicted_files(struct merge_result *result,
+				struct string_list *conflicted_files)
+{
+	struct hashmap_iter iter;
+	struct strmap_entry *e;
+	struct merge_options_internal *opti = result->priv;
+
+	strmap_for_each_entry(&opti->conflicted, &iter, e) {
+		const char *path = e->key;
+		struct conflict_info *ci = e->value;
+		int i;
+
+		VERIFY_CI(ci);
+
+		for (i = MERGE_BASE; i <= MERGE_SIDE2; i++) {
+			struct stage_info *si;
+
+			if (!(ci->filemask & (1ul << i)))
+				continue;
+
+			si = xmalloc(sizeof(*si));
+			si->stage = i+1;
+			si->mode = ci->stages[i].mode;
+			oidcpy(&si->oid, &ci->stages[i].oid);
+			string_list_append(conflicted_files, path)->util = si;
+		}
+	}
+	/* string_list_sort() uses a stable sort, so we're good */
+	string_list_sort(conflicted_files);
+}
+
 void merge_switch_to_result(struct merge_options *opt,
 			    struct tree *head,
 			    struct merge_result *result,
@@ -4180,6 +4669,8 @@ void merge_switch_to_result(struct merge_options *opt,
 		if (checkout(opt, head, result->tree)) {
 			/* failure to function */
 			result->clean = -1;
+			merge_finalize(opt, result);
+			trace2_region_leave("merge", "checkout", opt->repo);
 			return;
 		}
 		trace2_region_leave("merge", "checkout", opt->repo);
@@ -4190,6 +4681,9 @@ void merge_switch_to_result(struct merge_options *opt,
 			/* failure to function */
 			opt->priv = NULL;
 			result->clean = -1;
+			merge_finalize(opt, result);
+			trace2_region_leave("merge", "record_conflicted",
+					    opt->repo);
 			return;
 		}
 		opt->priv = NULL;
@@ -4202,40 +4696,8 @@ void merge_switch_to_result(struct merge_options *opt,
 		fclose(fp);
 		trace2_region_leave("merge", "write_auto_merge", opt->repo);
 	}
-
-	if (display_update_msgs) {
-		struct merge_options_internal *opti = result->priv;
-		struct hashmap_iter iter;
-		struct strmap_entry *e;
-		struct string_list olist = STRING_LIST_INIT_NODUP;
-		int i;
-
-		trace2_region_enter("merge", "display messages", opt->repo);
-
-		/* Hack to pre-allocate olist to the desired size */
-		ALLOC_GROW(olist.items, strmap_get_size(&opti->output),
-			   olist.alloc);
-
-		/* Put every entry from output into olist, then sort */
-		strmap_for_each_entry(&opti->output, &iter, e) {
-			string_list_append(&olist, e->key)->util = e->value;
-		}
-		string_list_sort(&olist);
-
-		/* Iterate over the items, printing them */
-		for (i = 0; i < olist.nr; ++i) {
-			struct strbuf *sb = olist.items[i].util;
-
-			printf("%s", sb->buf);
-		}
-		string_list_clear(&olist, 0);
-
-		/* Also include needed rename limit adjustment now */
-		diff_warn_rename_limit("merge.renamelimit",
-				       opti->renames.needed_limit, 0);
-
-		trace2_region_leave("merge", "display messages", opt->repo);
-	}
+	if (display_update_msgs)
+		merge_display_update_messages(opt, /* detailed */ 0, result);
 
 	merge_finalize(opt, result);
 }
@@ -4243,14 +4705,14 @@ void merge_switch_to_result(struct merge_options *opt,
 void merge_finalize(struct merge_options *opt,
 		    struct merge_result *result)
 {
-	struct merge_options_internal *opti = result->priv;
-
 	if (opt->renormalize)
 		git_attr_set_direction(GIT_ATTR_CHECKIN);
 	assert(opt->priv == NULL);
 
-	clear_or_reinit_internal_opts(opti, 0);
-	FREE_AND_NULL(opti);
+	if (result->priv) {
+		clear_or_reinit_internal_opts(result->priv, 0);
+		FREE_AND_NULL(result->priv);
+	}
 }
 
 /*** Function Grouping: helper functions for merge_incore_*() ***/
@@ -4293,6 +4755,7 @@ static void merge_start(struct merge_options *opt, struct merge_result *result)
 {
 	struct rename_info *renames;
 	int i;
+	struct mem_pool *pool = NULL;
 
 	/* Sanity checks on opt */
 	trace2_region_enter("merge", "sanity checks", opt->repo);
@@ -4309,6 +4772,9 @@ static void merge_start(struct merge_options *opt, struct merge_result *result)
 	assert(opt->xdl_opts >= 0);
 	assert(opt->recursive_variant >= MERGE_VARIANT_NORMAL &&
 	       opt->recursive_variant <= MERGE_VARIANT_THEIRS);
+
+	if (opt->msg_header_prefix)
+		assert(opt->record_conflict_msgs_as_headers);
 
 	/*
 	 * detect_renames, verbosity, buffer_output, and obuf are ignored
@@ -4351,6 +4817,7 @@ static void merge_start(struct merge_options *opt, struct merge_result *result)
 	trace2_region_enter("merge", "allocate/init", opt->repo);
 	if (opt->priv) {
 		clear_or_reinit_internal_opts(opt->priv, 1);
+		string_list_init_nodup(&opt->priv->conflicted_submodules);
 		trace2_region_leave("merge", "allocate/init", opt->repo);
 		return;
 	}
@@ -4358,9 +4825,11 @@ static void merge_start(struct merge_options *opt, struct merge_result *result)
 
 	/* Initialization of various renames fields */
 	renames = &opt->priv->renames;
+	mem_pool_init(&opt->priv->pool, 0);
+	pool = &opt->priv->pool;
 	for (i = MERGE_SIDE1; i <= MERGE_SIDE2; i++) {
 		strintmap_init_with_options(&renames->dirs_removed[i],
-					    NOT_RELEVANT, NULL, 0);
+					    NOT_RELEVANT, pool, 0);
 		strmap_init_with_options(&renames->dir_rename_count[i],
 					 NULL, 1);
 		strmap_init_with_options(&renames->dir_renames[i],
@@ -4374,7 +4843,7 @@ static void merge_start(struct merge_options *opt, struct merge_result *result)
 		 */
 		strintmap_init_with_options(&renames->relevant_sources[i],
 					    -1 /* explicitly invalid */,
-					    NULL, 0);
+					    pool, 0);
 		strmap_init_with_options(&renames->cached_pairs[i],
 					 NULL, 1);
 		strset_init_with_options(&renames->cached_irrelevant[i],
@@ -4384,9 +4853,9 @@ static void merge_start(struct merge_options *opt, struct merge_result *result)
 	}
 	for (i = MERGE_SIDE1; i <= MERGE_SIDE2; i++) {
 		strintmap_init_with_options(&renames->deferred[i].possible_trivial_merges,
-					    0, NULL, 0);
+					    0, pool, 0);
 		strset_init_with_options(&renames->deferred[i].target_dirs,
-					 NULL, 1);
+					 pool, 1);
 		renames->deferred[i].trivial_merges_okay = 1; /* 1 == maybe */
 	}
 
@@ -4394,27 +4863,25 @@ static void merge_start(struct merge_options *opt, struct merge_result *result)
 	 * Although we initialize opt->priv->paths with strdup_strings=0,
 	 * that's just to avoid making yet another copy of an allocated
 	 * string.  Putting the entry into paths means we are taking
-	 * ownership, so we will later free it.  paths_to_free is similar.
+	 * ownership, so we will later free it.
 	 *
 	 * In contrast, conflicted just has a subset of keys from paths, so
 	 * we don't want to free those (it'd be a duplicate free).
 	 */
-	strmap_init_with_options(&opt->priv->paths, NULL, 0);
-	strmap_init_with_options(&opt->priv->conflicted, NULL, 0);
-	string_list_init_nodup(&opt->priv->paths_to_free);
+	strmap_init_with_options(&opt->priv->paths, pool, 0);
+	strmap_init_with_options(&opt->priv->conflicted, pool, 0);
 
 	/*
-	 * keys & strbufs in output will sometimes need to outlive "paths",
-	 * so it will have a copy of relevant keys.  It's probably a small
-	 * subset of the overall paths that have special output.
+	 * keys & string_lists in conflicts will sometimes need to outlive
+	 * "paths", so it will have a copy of relevant keys.  It's probably
+	 * a small subset of the overall paths that have special output.
 	 */
-	strmap_init(&opt->priv->output);
+	strmap_init(&opt->priv->conflicts);
 
 	trace2_region_leave("merge", "allocate/init", opt->repo);
 }
 
-static void merge_check_renames_reusable(struct merge_options *opt,
-					 struct merge_result *result,
+static void merge_check_renames_reusable(struct merge_result *result,
 					 struct tree *merge_base,
 					 struct tree *side1,
 					 struct tree *side2)
@@ -4484,7 +4951,7 @@ redo:
 		 * TRANSLATORS: The %s arguments are: 1) tree hash of a merge
 		 * base, and 2-3) the trees for the two trees we're merging.
 		 */
-		err(opt, _("collecting merge info failed for trees %s, %s, %s"),
+		error(_("collecting merge info failed for trees %s, %s, %s"),
 		    oid_to_hex(&merge_base->object.oid),
 		    oid_to_hex(&side1->object.oid),
 		    oid_to_hex(&side2->object.oid));
@@ -4494,8 +4961,7 @@ redo:
 	trace2_region_leave("merge", "collect_merge_info", opt->repo);
 
 	trace2_region_enter("merge", "renames", opt->repo);
-	result->clean = detect_and_process_renames(opt, merge_base,
-						   side1, side2);
+	result->clean = detect_and_process_renames(opt);
 	trace2_region_leave("merge", "renames", opt->repo);
 	if (opt->priv->renames.redo_after_renames == 2) {
 		trace2_region_enter("merge", "reset_maps", opt->repo);
@@ -4505,13 +4971,18 @@ redo:
 	}
 
 	trace2_region_enter("merge", "process_entries", opt->repo);
-	process_entries(opt, &working_tree_oid);
+	if (process_entries(opt, &working_tree_oid) < 0)
+		result->clean = -1;
 	trace2_region_leave("merge", "process_entries", opt->repo);
 
 	/* Set return values */
-	result->tree = parse_tree_indirect(&working_tree_oid);
-	/* existence of conflicted entries implies unclean */
-	result->clean &= strmap_empty(&opt->priv->conflicted);
+	result->path_messages = &opt->priv->conflicts;
+
+	if (result->clean >= 0) {
+		result->tree = parse_tree_indirect(&working_tree_oid);
+		/* existence of conflicted entries implies unclean */
+		result->clean &= strmap_empty(&opt->priv->conflicted);
+	}
 	if (!opt->priv->call_depth) {
 		result->priv = opt->priv;
 		result->_properly_initialized = RESULT_INITIALIZED;
@@ -4528,19 +4999,19 @@ static void merge_ort_internal(struct merge_options *opt,
 			       struct commit *h2,
 			       struct merge_result *result)
 {
-	struct commit_list *iter;
+	struct commit *next;
 	struct commit *merged_merge_bases;
 	const char *ancestor_name;
 	struct strbuf merge_base_abbrev = STRBUF_INIT;
 
 	if (!merge_bases) {
-		merge_bases = get_merge_bases(h1, h2);
+		merge_bases = repo_get_merge_bases(the_repository, h1, h2);
 		/* See merge-ort.h:merge_incore_recursive() declaration NOTE */
 		merge_bases = reverse_commit_list(merge_bases);
 	}
 
 	merged_merge_bases = pop_commit(&merge_bases);
-	if (merged_merge_bases == NULL) {
+	if (!merged_merge_bases) {
 		/* if there is no common ancestor, use an empty tree */
 		struct tree *tree;
 
@@ -4557,7 +5028,8 @@ static void merge_ort_internal(struct merge_options *opt,
 		ancestor_name = merge_base_abbrev.buf;
 	}
 
-	for (iter = merge_bases; iter; iter = iter->next) {
+	for (next = pop_commit(&merge_bases); next;
+	     next = pop_commit(&merge_bases)) {
 		const char *saved_b1, *saved_b2;
 		struct commit *prev = merged_merge_bases;
 
@@ -4574,7 +5046,7 @@ static void merge_ort_internal(struct merge_options *opt,
 		saved_b2 = opt->branch2;
 		opt->branch1 = "Temporary merge branch 1";
 		opt->branch2 = "Temporary merge branch 2";
-		merge_ort_internal(opt, NULL, prev, iter->item, result);
+		merge_ort_internal(opt, NULL, prev, next, result);
 		if (result->clean < 0)
 			return;
 		opt->branch1 = saved_b1;
@@ -4585,8 +5057,7 @@ static void merge_ort_internal(struct merge_options *opt,
 							 result->tree,
 							 "merged tree");
 		commit_list_insert(prev, &merged_merge_bases->parents);
-		commit_list_insert(iter->item,
-				   &merged_merge_bases->parents->next);
+		commit_list_insert(next, &merged_merge_bases->parents->next);
 
 		clear_or_reinit_internal_opts(opt->priv, 1);
 	}
@@ -4612,7 +5083,7 @@ void merge_incore_nonrecursive(struct merge_options *opt,
 
 	trace2_region_enter("merge", "merge_start", opt->repo);
 	assert(opt->ancestor != NULL);
-	merge_check_renames_reusable(opt, result, merge_base, side1, side2);
+	merge_check_renames_reusable(result, merge_base, side1, side2);
 	merge_start(opt, result);
 	/*
 	 * Record the trees used in this merge, so if there's a next merge in

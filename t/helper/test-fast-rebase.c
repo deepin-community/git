@@ -10,22 +10,29 @@
  * refactoring is the better route).
  */
 
-#define USE_THE_INDEX_COMPATIBILITY_MACROS
+#define USE_THE_INDEX_VARIABLE
 #include "test-tool.h"
-
 #include "cache-tree.h"
 #include "commit.h"
+#include "environment.h"
+#include "gettext.h"
+#include "hash.h"
+#include "hex.h"
 #include "lockfile.h"
 #include "merge-ort.h"
+#include "object-name.h"
+#include "read-cache-ll.h"
 #include "refs.h"
 #include "revision.h"
 #include "sequencer.h"
+#include "setup.h"
 #include "strvec.h"
 #include "tree.h"
 
 static const char *short_commit_name(struct commit *commit)
 {
-	return find_unique_abbrev(&commit->object.oid, DEFAULT_ABBREV);
+	return repo_find_unique_abbrev(the_repository, &commit->object.oid,
+				       DEFAULT_ABBREV);
 }
 
 static struct commit *peel_committish(const char *name)
@@ -33,10 +40,11 @@ static struct commit *peel_committish(const char *name)
 	struct object *obj;
 	struct object_id oid;
 
-	if (get_oid(name, &oid))
+	if (repo_get_oid(the_repository, name, &oid))
 		return NULL;
 	obj = parse_object(the_repository, &oid);
-	return (struct commit *)peel_to_type(name, 0, obj, OBJ_COMMIT);
+	return (struct commit *)repo_peel_to_type(the_repository, name, 0, obj,
+						  OBJ_COMMIT);
 }
 
 static char *get_author(const char *message)
@@ -63,7 +71,8 @@ static struct commit *create_commit(struct tree *tree,
 	struct commit_extra_header *extra;
 	struct strbuf msg = STRBUF_INIT;
 	const char *out_enc = get_commit_output_encoding();
-	const char *message = logmsg_reencode(based_on, NULL, out_enc);
+	const char *message = repo_logmsg_reencode(the_repository, based_on,
+						   NULL, out_enc);
 	const char *orig_message = NULL;
 	const char *exclude_gpgsig[] = { "gpgsig", NULL };
 
@@ -99,6 +108,7 @@ int cmd__fast_rebase(int argc, const char **argv)
 	struct merge_result result;
 	struct strbuf reflog_msg = STRBUF_INIT;
 	struct strbuf branch_name = STRBUF_INIT;
+	int ret = 0;
 
 	/*
 	 * test-tool stuff doesn't set up the git directory by default; need to
@@ -118,11 +128,11 @@ int cmd__fast_rebase(int argc, const char **argv)
 	strbuf_addf(&branch_name, "refs/heads/%s", argv[4]);
 
 	/* Sanity check */
-	if (get_oid("HEAD", &head))
+	if (repo_get_oid(the_repository, "HEAD", &head))
 		die(_("Cannot read HEAD"));
 	assert(oideq(&onto->object.oid, &head));
 
-	hold_locked_index(&lock, LOCK_DIE_ON_ERROR);
+	repo_hold_locked_index(the_repository, &lock, LOCK_DIE_ON_ERROR);
 	if (repo_read_index(the_repository) < 0)
 		BUG("Could not read index");
 
@@ -137,19 +147,23 @@ int cmd__fast_rebase(int argc, const char **argv)
 	revs.topo_order = 1;
 	strvec_pushl(&rev_walk_args, "", argv[4], "--not", argv[3], NULL);
 
-	if (setup_revisions(rev_walk_args.nr, rev_walk_args.v, &revs, NULL) > 1)
-		return error(_("unhandled options"));
+	if (setup_revisions(rev_walk_args.nr, rev_walk_args.v, &revs, NULL) > 1) {
+		ret = error(_("unhandled options"));
+		goto cleanup;
+	}
 
 	strvec_clear(&rev_walk_args);
 
-	if (prepare_revision_walk(&revs) < 0)
-		return error(_("error preparing revisions"));
+	if (prepare_revision_walk(&revs) < 0) {
+		ret = error(_("error preparing revisions"));
+		goto cleanup;
+	}
 
 	init_merge_options(&merge_opt, the_repository);
 	memset(&result, 0, sizeof(result));
 	merge_opt.show_rename_progress = 1;
 	merge_opt.branch1 = "HEAD";
-	head_tree = get_commit_tree(onto);
+	head_tree = repo_get_commit_tree(the_repository, onto);
 	result.tree = head_tree;
 	last_commit = onto;
 	while ((commit = get_revision(&revs))) {
@@ -160,8 +174,8 @@ int cmd__fast_rebase(int argc, const char **argv)
 		assert(commit->parents && !commit->parents->next);
 		base = commit->parents->item;
 
-		next_tree = get_commit_tree(commit);
-		base_tree = get_commit_tree(base);
+		next_tree = repo_get_commit_tree(the_repository, commit);
+		base_tree = repo_get_commit_tree(the_repository, base);
 
 		merge_opt.branch2 = short_commit_name(commit);
 		merge_opt.ancestor = xstrfmt("parent of %s", merge_opt.branch2);
@@ -179,8 +193,6 @@ int cmd__fast_rebase(int argc, const char **argv)
 		last_picked_commit = commit;
 		last_commit = create_commit(result.tree, commit, last_commit);
 	}
-	/* TODO: There should be some kind of rev_info_free(&revs) call... */
-	memset(&revs, 0, sizeof(revs));
 
 	merge_switch_to_result(&merge_opt, head_tree, &result, 1, !result.clean);
 
@@ -201,8 +213,6 @@ int cmd__fast_rebase(int argc, const char **argv)
 		}
 		if (create_symref("HEAD", branch_name.buf, reflog_msg.buf) < 0)
 			die(_("unable to update HEAD"));
-		strbuf_release(&reflog_msg);
-		strbuf_release(&branch_name);
 
 		prime_cache_tree(the_repository, the_repository->index,
 				 result.tree);
@@ -221,5 +231,11 @@ int cmd__fast_rebase(int argc, const char **argv)
 	if (write_locked_index(&the_index, &lock,
 			       COMMIT_LOCK | SKIP_IF_UNCHANGED))
 		die(_("unable to write %s"), get_index_file());
-	return (result.clean == 0);
+
+	ret = (result.clean == 0);
+cleanup:
+	strbuf_release(&reflog_msg);
+	strbuf_release(&branch_name);
+	release_revisions(&revs);
+	return ret;
 }
