@@ -115,7 +115,7 @@ test_expect_success GPGSM 'verify and show signatures x509 with high minTrustLev
 
 test_expect_success GPG 'detect fudged signature' '
 	git cat-file tag seventh-signed >raw &&
-	sed -e "/^tag / s/seventh/7th forged/" raw >forged1 &&
+	sed -e "/^tag / s/seventh/7th-forged/" raw >forged1 &&
 	git hash-object -w -t tag forged1 >forged1.tag &&
 	test_must_fail git verify-tag $(cat forged1.tag) 2>actual1 &&
 	grep "BAD signature from" actual1 &&
@@ -192,6 +192,10 @@ test_expect_success GPG 'verifying tag with --format' '
 	EOF
 	git verify-tag --format="tagname : %(tag)" "fourth-signed" >actual &&
 	test_cmp expect actual
+'
+
+test_expect_success GPG 'verifying tag with --format="%(rest)" must fail' '
+	test_must_fail git verify-tag --format="%(rest)" "fourth-signed"
 '
 
 test_expect_success GPG 'verifying a forged tag with --format should fail silently' '

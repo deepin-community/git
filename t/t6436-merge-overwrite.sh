@@ -68,7 +68,8 @@ test_expect_success 'will not overwrite removed file' '
 	git commit -m "rm c1.c" &&
 	cp important c1.c &&
 	test_must_fail git merge c1a &&
-	test_cmp important c1.c
+	test_cmp important c1.c &&
+	rm c1.c  # Do not leave untracked file in way of future tests
 '
 
 test_expect_success 'will not overwrite re-added file' '
@@ -103,12 +104,12 @@ test_expect_success 'will not overwrite unstaged changes in renamed file' '
 	if test "$GIT_TEST_MERGE_ALGORITHM" = ort
 	then
 		test_must_fail git merge c1a >out 2>err &&
-		test_i18ngrep "would be overwritten by merge" err &&
+		test_grep "would be overwritten by merge" err &&
 		test_cmp important other.c &&
 		test_path_is_missing .git/MERGE_HEAD
 	else
 		test_must_fail git merge c1a >out &&
-		test_i18ngrep "Refusing to lose dirty file at other.c" out &&
+		test_grep "Refusing to lose dirty file at other.c" out &&
 		test_path_is_file other.c~HEAD &&
 		test $(git hash-object other.c~HEAD) = $(git rev-parse c1a:c1.c) &&
 		test_cmp important other.c

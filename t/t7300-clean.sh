@@ -120,7 +120,7 @@ test_expect_success 'git clean with relative prefix' '
 		grep part3 |
 		sed -n -e "s|^Would remove ||p"
 	) &&
-	verbose test "$would_clean" = ../src/part3.c
+	test "$would_clean" = ../src/part3.c
 '
 
 test_expect_success 'git clean with absolute path' '
@@ -133,7 +133,7 @@ test_expect_success 'git clean with absolute path' '
 		grep part3 |
 		sed -n -e "s|^Would remove ||p"
 	) &&
-	verbose test "$would_clean" = ../src/part3.c
+	test "$would_clean" = ../src/part3.c
 '
 
 test_expect_success 'git clean with out of work tree relative path' '
@@ -480,6 +480,7 @@ test_expect_success 'should not clean submodules' '
 		git init &&
 		test_commit msg hello.world
 	) &&
+	test_config_global protocol.file.allow always &&
 	git submodule add ./repo/.git sub1 &&
 	git commit -m "sub1" &&
 	git branch before_sub2 &&
@@ -734,7 +735,7 @@ test_expect_success MINGW 'handle clean & core.longpaths = false nicely' '
 	test_must_fail git clean -xdf 2>.git/err &&
 	# grepping for a strerror string is unportable but it is OK here with
 	# MINGW prereq
-	test_i18ngrep "too long" .git/err
+	test_grep "too long" .git/err
 '
 
 test_expect_success 'clean untracked paths by pathspec' '

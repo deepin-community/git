@@ -1,6 +1,7 @@
 #include "builtin.h"
 #include "config.h"
 #include "commit.h"
+#include "hex.h"
 #include "refs.h"
 #include "pkt-line.h"
 #include "sideband.h"
@@ -15,12 +16,15 @@
 #include "gpg-interface.h"
 #include "gettext.h"
 #include "protocol.h"
+#include "parse-options.h"
+#include "write-or-die.h"
 
 static const char * const send_pack_usage[] = {
-	N_("git send-pack [--all | --mirror] [--dry-run] [--force] "
-	  "[--receive-pack=<git-receive-pack>] [--verbose] [--thin] [--atomic] "
-	  "[<host>:]<directory> [<ref>...]\n"
-	  "  --all and explicit <ref> specification are mutually exclusive."),
+	N_("git send-pack [--mirror] [--dry-run] [--force]\n"
+	   "              [--receive-pack=<git-receive-pack>]\n"
+	   "              [--verbose] [--thin] [--atomic]\n"
+	   "              [--[no-]signed | --signed=(true|false|if-asked)]\n"
+	   "              [<host>:]<directory> (--all | <ref>...)"),
 	NULL,
 };
 
@@ -87,6 +91,10 @@ static void print_helper_status(struct ref *ref)
 			break;
 
 		case REF_STATUS_EXPECTING_REPORT:
+			res = "error";
+			msg = "expecting report";
+			break;
+
 		default:
 			continue;
 		}
@@ -123,10 +131,9 @@ static void print_helper_status(struct ref *ref)
 	strbuf_release(&buf);
 }
 
-static int send_pack_config(const char *k, const char *v, void *cb)
+static int send_pack_config(const char *k, const char *v,
+			    const struct config_context *ctx, void *cb)
 {
-	git_gpg_config(k, v, NULL);
-
 	if (!strcmp(k, "push.gpgsign")) {
 		const char *value;
 		if (!git_config_get_value("push.gpgsign", &value)) {
@@ -141,11 +148,11 @@ static int send_pack_config(const char *k, const char *v, void *cb)
 				if (value && !strcasecmp(value, "if-asked"))
 					args.push_cert = SEND_PACK_PUSH_CERT_IF_ASKED;
 				else
-					return error("Invalid value for '%s'", k);
+					return error(_("invalid value for '%s'"), k);
 			}
 		}
 	}
-	return git_default_config(k, v, cb);
+	return git_default_config(k, v, ctx, cb);
 }
 
 int cmd_send_pack(int argc, const char **argv, const char *prefix)
@@ -270,7 +277,7 @@ int cmd_send_pack(int argc, const char **argv, const char *prefix)
 		fd[0] = 0;
 		fd[1] = 1;
 	} else {
-		conn = git_connect(fd, dest, receivepack,
+		conn = git_connect(fd, dest, "git-receive-pack", receivepack,
 			args.verbose ? CONNECT_VERBOSE : 0);
 	}
 

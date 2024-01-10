@@ -4,7 +4,7 @@
 #ifndef CONVERT_H
 #define CONVERT_H
 
-#include "hash.h"
+#include "hash-ll.h"
 #include "string-list.h"
 
 struct index_state;
@@ -53,7 +53,11 @@ struct delayed_checkout {
 	enum ce_delay_state state;
 	/* List of filter drivers that signaled delayed blobs. */
 	struct string_list filters;
-	/* List of delayed blobs identified by their path. */
+	/*
+	 * List of delayed blobs identified by their path. The `util` member
+	 * holds a counter pointer which must be incremented when/if the
+	 * associated blob gets checked out.
+	 */
 	struct string_list paths;
 };
 

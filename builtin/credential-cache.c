@@ -1,5 +1,9 @@
 #include "builtin.h"
+#include "gettext.h"
 #include "parse-options.h"
+#include "path.h"
+#include "strbuf.h"
+#include "write-or-die.h"
 
 #ifndef NO_UNIX_SOCKETS
 
@@ -10,6 +14,32 @@
 
 #define FLAG_SPAWN 0x1
 #define FLAG_RELAY 0x2
+
+#ifdef GIT_WINDOWS_NATIVE
+
+static int connection_closed(int error)
+{
+	return (error == EINVAL);
+}
+
+static int connection_fatally_broken(int error)
+{
+	return (error != ENOENT) && (error != ENETDOWN);
+}
+
+#else
+
+static int connection_closed(int error)
+{
+	return (error == ECONNRESET);
+}
+
+static int connection_fatally_broken(int error)
+{
+	return (error != ENOENT) && (error != ECONNREFUSED);
+}
+
+#endif
 
 static int send_request(const char *socket, const struct strbuf *out)
 {
@@ -28,7 +58,7 @@ static int send_request(const char *socket, const struct strbuf *out)
 		int r;
 
 		r = read_in_full(fd, in, sizeof(in));
-		if (r == 0 || (r < 0 && errno == ECONNRESET))
+		if (r == 0 || (r < 0 && connection_closed(errno)))
 			break;
 		if (r < 0)
 			die_errno("read error from cache daemon");
@@ -75,7 +105,7 @@ static void do_cache(const char *socket, const char *action, int timeout,
 	}
 
 	if (send_request(socket, &buf) < 0) {
-		if (errno != ENOENT && errno != ECONNREFUSED)
+		if (connection_fatally_broken(errno))
 			die_errno("unable to connect to cache daemon");
 		if (flags & FLAG_SPAWN) {
 			spawn_daemon(socket);
@@ -90,7 +120,7 @@ static char *get_socket_path(void)
 {
 	struct stat sb;
 	char *old_dir, *socket;
-	old_dir = expand_user_path("~/.git-credential-cache", 0);
+	old_dir = interpolate_path("~/.git-credential-cache", 0);
 	if (old_dir && !stat(old_dir, &sb) && S_ISDIR(sb.st_mode))
 		socket = xstrfmt("%s/socket", old_dir);
 	else

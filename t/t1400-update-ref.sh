@@ -4,9 +4,6 @@
 #
 
 test_description='Test git update-ref and basic ref logging'
-GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
-export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
-
 . ./test-lib.sh
 
 Z=$ZERO_OID
@@ -321,8 +318,9 @@ $A $B $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL> 1117150260 +0000	Switch
 $B $A $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL> 1117150860 +0000
 EOF
 test_expect_success "verifying $m's log (logged by touch)" '
-	test_when_finished "rm -rf .git/$m .git/logs expect" &&
-	test_cmp expect .git/logs/$m
+	test_when_finished "git update-ref -d $m && rm -rf .git/logs actual expect" &&
+	test-tool ref-store main for-each-reflog-ent $m >actual &&
+	test_cmp actual expect
 '
 
 test_expect_success "create $m (logged by config)" '
@@ -350,8 +348,9 @@ $A $B $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL> 1117150380 +0000	Switch
 $B $A $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL> 1117150980 +0000
 EOF
 test_expect_success "verifying $m's log (logged by config)" '
-	test_when_finished "rm -f .git/$m .git/logs/$m expect" &&
-	test_cmp expect .git/logs/$m
+	test_when_finished "git update-ref -d $m && rm -rf .git/logs actual expect" &&
+	test-tool ref-store main for-each-reflog-ent $m >actual &&
+	test_cmp actual expect
 '
 
 test_expect_success 'set up for querying the reflog' '
@@ -411,7 +410,7 @@ test_expect_success 'Query "main@{2005-05-26 23:33:01}" (middle of history with 
 	git rev-parse --verify "main@{2005-05-26 23:33:01}" >o 2>e &&
 	echo "$B" >expect &&
 	test_cmp expect o &&
-	test_i18ngrep -F "warning: log for ref $m has gap after $gd" e
+	test_grep -F "warning: log for ref $m has gap after $gd" e
 '
 test_expect_success 'Query "main@{2005-05-26 23:38:00}" (middle of history)' '
 	test_when_finished "rm -f o e" &&
@@ -432,7 +431,7 @@ test_expect_success 'Query "main@{2005-05-28}" (past end of history)' '
 	git rev-parse --verify "main@{2005-05-28}" >o 2>e &&
 	echo "$D" >expect &&
 	test_cmp expect o &&
-	test_i18ngrep -F "warning: log for ref $m unexpectedly ended on $ld" e
+	test_grep -F "warning: log for ref $m unexpectedly ended on $ld" e
 '
 
 rm -f .git/$m .git/logs/$m expect
@@ -467,7 +466,8 @@ $h_OTHER $h_FIXED $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL> 1117151040 +0000	co
 $h_FIXED $h_MERGED $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL> 1117151100 +0000	commit (merge): Merged initial commit and a later commit.
 EOF
 test_expect_success 'git commit logged updates' '
-	test_cmp expect .git/logs/$m
+	test-tool ref-store main for-each-reflog-ent $m >actual &&
+	test_cmp expect actual
 '
 unset h_TEST h_OTHER h_FIXED h_MERGED
 
@@ -486,7 +486,7 @@ test_expect_success 'git cat-file blob main@{2005-05-26 23:42}:F (expect OTHER)'
 test_expect_success 'given old value for missing pseudoref, do not create' '
 	test_must_fail git update-ref PSEUDOREF $A $B 2>err &&
 	test_must_fail git rev-parse PSEUDOREF &&
-	test_i18ngrep "unable to resolve reference" err
+	test_grep "unable to resolve reference" err
 '
 
 test_expect_success 'create pseudoref' '
@@ -507,7 +507,7 @@ test_expect_success 'overwrite pseudoref with correct old value' '
 test_expect_success 'do not overwrite pseudoref with wrong old value' '
 	test_must_fail git update-ref PSEUDOREF $D $E 2>err &&
 	test $C = $(git rev-parse PSEUDOREF) &&
-	test_i18ngrep "cannot lock ref.*expected" err
+	test_grep "cannot lock ref.*expected" err
 '
 
 test_expect_success 'delete pseudoref' '
@@ -519,7 +519,7 @@ test_expect_success 'do not delete pseudoref with wrong old value' '
 	git update-ref PSEUDOREF $A &&
 	test_must_fail git update-ref -d PSEUDOREF $B 2>err &&
 	test $A = $(git rev-parse PSEUDOREF) &&
-	test_i18ngrep "cannot lock ref.*expected" err
+	test_grep "cannot lock ref.*expected" err
 '
 
 test_expect_success 'delete pseudoref with correct old value' '
@@ -536,7 +536,7 @@ test_expect_success 'do not overwrite pseudoref with old OID zero' '
 	test_when_finished git update-ref -d PSEUDOREF &&
 	test_must_fail git update-ref PSEUDOREF $B $Z 2>err &&
 	test $A = $(git rev-parse PSEUDOREF) &&
-	test_i18ngrep "already exists" err
+	test_grep "already exists" err
 '
 
 # Test --stdin
@@ -556,7 +556,7 @@ test_expect_success 'stdin test setup' '
 
 test_expect_success '-z fails without --stdin' '
 	test_must_fail git update-ref -z $m $m $m 2>err &&
-	test_i18ngrep "usage: git update-ref" err
+	test_grep "usage: git update-ref" err
 '
 
 test_expect_success 'stdin works with no input' '
@@ -674,7 +674,7 @@ test_expect_success 'stdin fails with duplicate refs' '
 	create $a $m
 	EOF
 	test_must_fail git update-ref --stdin <stdin 2>err &&
-	test_i18ngrep "fatal: multiple updates for ref '"'"'$a'"'"' not allowed" err
+	test_grep "fatal: multiple updates for ref '"'"'$a'"'"' not allowed" err
 '
 
 test_expect_success 'stdin create ref works' '
@@ -1107,7 +1107,7 @@ test_expect_success 'stdin -z fails option with unknown name' '
 test_expect_success 'stdin -z fails with duplicate refs' '
 	printf $F "create $a" "$m" "create $b" "$m" "create $a" "$m" >stdin &&
 	test_must_fail git update-ref -z --stdin <stdin 2>err &&
-	test_i18ngrep "fatal: multiple updates for ref '"'"'$a'"'"' not allowed" err
+	test_grep "fatal: multiple updates for ref '"'"'$a'"'"' not allowed" err
 '
 
 test_expect_success 'stdin -z create ref works' '
@@ -1338,7 +1338,7 @@ test_expect_success 'fails with duplicate HEAD update' '
 	update HEAD $B
 	EOF
 	test_must_fail git update-ref --stdin <stdin 2>err &&
-	test_i18ngrep "fatal: multiple updates for '\''HEAD'\'' (including one via its referent .refs/heads/target1.) are not allowed" err &&
+	test_grep "fatal: multiple updates for '\''HEAD'\'' (including one via its referent .refs/heads/target1.) are not allowed" err &&
 	echo "refs/heads/target1" >expect &&
 	git symbolic-ref HEAD >actual &&
 	test_cmp expect actual &&
@@ -1355,7 +1355,7 @@ test_expect_success 'fails with duplicate ref update via symref' '
 	update refs/heads/symref2 $B
 	EOF
 	test_must_fail git update-ref --stdin <stdin 2>err &&
-	test_i18ngrep "fatal: multiple updates for '\''refs/heads/target2'\'' (including one via symref .refs/heads/symref2.) are not allowed" err &&
+	test_grep "fatal: multiple updates for '\''refs/heads/target2'\'' (including one via symref .refs/heads/symref2.) are not allowed" err &&
 	echo "refs/heads/target2" >expect &&
 	git symbolic-ref refs/heads/symref2 >actual &&
 	test_cmp expect actual &&
@@ -1368,7 +1368,7 @@ test_expect_success ULIMIT_FILE_DESCRIPTORS 'large transaction creating branches
 (
 	for i in $(test_seq 33)
 	do
-		echo "create refs/heads/$i HEAD"
+		echo "create refs/heads/$i HEAD" || exit 1
 	done >large_input &&
 	run_with_limited_open_files git update-ref --stdin <large_input &&
 	git rev-parse --verify -q refs/heads/33
@@ -1379,7 +1379,7 @@ test_expect_success ULIMIT_FILE_DESCRIPTORS 'large transaction deleting branches
 (
 	for i in $(test_seq 33)
 	do
-		echo "delete refs/heads/$i HEAD"
+		echo "delete refs/heads/$i HEAD" || exit 1
 	done >large_input &&
 	run_with_limited_open_files git update-ref --stdin <large_input &&
 	test_must_fail git rev-parse --verify -q refs/heads/33
@@ -1568,6 +1568,7 @@ test_expect_success 'transaction can create and delete' '
 	EOF
 	git update-ref --stdin <stdin >actual &&
 	printf "%s: ok\n" start commit start commit >expect &&
+	test_cmp expect actual &&
 	test_must_fail git show-ref --verify refs/heads/create-and-delete
 '
 
@@ -1595,6 +1596,8 @@ test_expect_success 'transaction cannot restart ongoing transaction' '
 	commit
 	EOF
 	test_must_fail git update-ref --stdin <stdin >actual &&
+	printf "%s: ok\n" start >expect &&
+	test_cmp expect actual &&
 	test_must_fail git show-ref --verify refs/heads/restart
 '
 
