@@ -1,3 +1,10 @@
+git (1:2.43.4-0deepin1) unstable; urgency=medium
+
+  * new upstream point release (see RelNotes/2.43.4.txt; addresses
+    CVE-2024-32002, CVE-2024-32004, CVE-2024-32020 and CVE-2024-32021).
+
+ -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 15 May 2024 13:23:32 +0800
+
 git (1:2.43.0-1) unstable; urgency=low
 
   * new upstream release (see RelNotes/2.43.0.txt).
