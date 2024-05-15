@@ -16,7 +16,6 @@
 #include "object-file.h"
 #include "object-store-ll.h"
 #include "path.h"
-#include "attr.h"
 #include "refs.h"
 #include "wildmatch.h"
 #include "pathspec.h"
@@ -99,6 +98,18 @@ int fspatheq(const char *a, const char *b)
 int fspathncmp(const char *a, const char *b, size_t count)
 {
 	return ignore_case ? strncasecmp(a, b, count) : strncmp(a, b, count);
+}
+
+int paths_collide(const char *a, const char *b)
+{
+	size_t len_a = strlen(a), len_b = strlen(b);
+
+	if (len_a == len_b)
+		return fspatheq(a, b);
+
+	if (len_a < len_b)
+		return is_dir_sep(b[len_a]) && !fspathncmp(a, b, len_a);
+	return is_dir_sep(a[len_b]) && !fspathncmp(a, b, len_b);
 }
 
 unsigned int fspathhash(const char *str)
