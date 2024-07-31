@@ -34,18 +34,14 @@ macos-*)
 	export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
 	# Uncomment this if you want to run perf tests:
 	# brew install gnu-time
-	test -z "$BREW_INSTALL_PACKAGES" ||
-	brew install $BREW_INSTALL_PACKAGES
 	brew link --force gettext
-	mkdir -p $HOME/bin
-	(
-		cd $HOME/bin
+
+	mkdir -p "$P4_PATH"
+	pushd "$P4_PATH"
 		wget -q "$P4WHENCE/bin.macosx1015x86_64/helix-core-server.tgz" &&
 		tar -xf helix-core-server.tgz &&
 		sudo xattr -d com.apple.quarantine p4 p4d 2>/dev/null || true
-	)
-	PATH="$PATH:${HOME}/bin"
-	export PATH
+	popd
 
 	if test -n "$CC_PACKAGE"
 	then

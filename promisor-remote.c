@@ -8,6 +8,7 @@
 #include "transport.h"
 #include "strvec.h"
 #include "packfile.h"
+#include "environment.h"
 
 struct promisor_remote_config {
 	struct promisor_remote *promisors;
@@ -23,8 +24,7 @@ static int fetch_objects(struct repository *repo,
 	int i;
 	FILE *child_in;
 
-	/* TODO: This should use NO_LAZY_FETCH_ENVIRONMENT */
-	if (git_env_bool("GIT_NO_LAZY_FETCH", 0)) {
+	if (git_env_bool(NO_LAZY_FETCH_ENVIRONMENT, 0)) {
 		static int warning_shown;
 		if (!warning_shown) {
 			warning_shown = 1;
