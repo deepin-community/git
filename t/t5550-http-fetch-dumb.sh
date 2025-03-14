@@ -4,6 +4,7 @@ test_description='test dumb fetching over http via static file'
 GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
 export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 
+TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 
 if test_have_prereq !REFFILES
@@ -23,6 +24,12 @@ test_expect_success 'setup repository' '
 	echo content2 >file &&
 	git add file &&
 	git commit -m two
+'
+
+test_expect_success 'packfile without repository does not crash' '
+	echo "fatal: not a git repository" >expect &&
+	test_must_fail nongit git http-fetch --packfile=abc 2>err &&
+	test_cmp expect err
 '
 
 setup_post_update_server_info_hook () {
@@ -55,6 +62,21 @@ test_expect_success 'list refs from outside any repository' '
 	test_cmp expect actual
 '
 
+
+test_expect_success 'list detached HEAD from outside any repository' '
+	git clone --mirror "$HTTPD_DOCUMENT_ROOT_PATH/repo.git" \
+		"$HTTPD_DOCUMENT_ROOT_PATH/repo-detached.git" &&
+	git -C "$HTTPD_DOCUMENT_ROOT_PATH/repo-detached.git" \
+		update-ref --no-deref HEAD refs/heads/main &&
+	git -C "$HTTPD_DOCUMENT_ROOT_PATH/repo-detached.git" update-server-info &&
+	cat >expect <<-EOF &&
+	$(git rev-parse main)	HEAD
+	$(git rev-parse main)	refs/heads/main
+	EOF
+	nongit git ls-remote "$HTTPD_URL/dumb/repo-detached.git" >actual &&
+	test_cmp expect actual
+'
+
 test_expect_success 'create password-protected repository' '
 	mkdir -p "$HTTPD_DOCUMENT_ROOT_PATH/auth/dumb/" &&
 	cp -Rf "$HTTPD_DOCUMENT_ROOT_PATH/repo.git" \
@@ -66,11 +88,11 @@ test_expect_success 'create empty remote repository' '
 	setup_post_update_server_info_hook "$HTTPD_DOCUMENT_ROOT_PATH/empty.git"
 '
 
-test_expect_success 'empty dumb HTTP repository has default hash algorithm' '
+test_expect_success 'empty dumb HTTP repository falls back to SHA1' '
 	test_when_finished "rm -fr clone-empty" &&
 	git clone $HTTPD_URL/dumb/empty.git clone-empty &&
 	git -C clone-empty rev-parse --show-object-format >empty-format &&
-	test "$(cat empty-format)" = "$(test_oid algo)"
+	test "$(cat empty-format)" = sha1
 '
 
 setup_askpass_helper
@@ -90,13 +112,13 @@ test_expect_success 'http auth can use user/pass in URL' '
 test_expect_success 'http auth can use just user in URL' '
 	set_askpass wrong pass@host &&
 	git clone "$HTTPD_URL_USER/auth/dumb/repo.git" clone-auth-pass &&
-	expect_askpass pass user@host
+	expect_askpass pass user%40host
 '
 
 test_expect_success 'http auth can request both user and pass' '
 	set_askpass user@host pass@host &&
 	git clone "$HTTPD_URL/auth/dumb/repo.git" clone-auth-both &&
-	expect_askpass both user@host
+	expect_askpass both user%40host
 '
 
 test_expect_success 'http auth respects credential helper config' '
@@ -114,14 +136,14 @@ test_expect_success 'http auth can get username from config' '
 	test_config_global "credential.$HTTPD_URL.username" user@host &&
 	set_askpass wrong pass@host &&
 	git clone "$HTTPD_URL/auth/dumb/repo.git" clone-auth-user &&
-	expect_askpass pass user@host
+	expect_askpass pass user%40host
 '
 
 test_expect_success 'configured username does not override URL' '
 	test_config_global "credential.$HTTPD_URL.username" wrong &&
 	set_askpass wrong pass@host &&
 	git clone "$HTTPD_URL_USER/auth/dumb/repo.git" clone-auth-user2 &&
-	expect_askpass pass user@host
+	expect_askpass pass user%40host
 '
 
 test_expect_success 'set up repo with http submodules' '
@@ -142,7 +164,7 @@ test_expect_success 'cmdline credential config passes to submodule via clone' '
 	set_askpass wrong pass@host &&
 	git -c "credential.$HTTPD_URL.username=user@host" \
 		clone --recursive super super-clone &&
-	expect_askpass pass user@host
+	expect_askpass pass user%40host
 '
 
 test_expect_success 'cmdline credential config passes submodule via fetch' '
@@ -153,7 +175,7 @@ test_expect_success 'cmdline credential config passes submodule via fetch' '
 	git -C super-clone \
 	    -c "credential.$HTTPD_URL.username=user@host" \
 	    fetch --recurse-submodules &&
-	expect_askpass pass user@host
+	expect_askpass pass user%40host
 '
 
 test_expect_success 'cmdline credential config passes submodule update' '
@@ -170,7 +192,7 @@ test_expect_success 'cmdline credential config passes submodule update' '
 	git -C super-clone \
 	    -c "credential.$HTTPD_URL.username=user@host" \
 	    submodule update &&
-	expect_askpass pass user@host
+	expect_askpass pass user%40host
 '
 
 test_expect_success 'fetch changes via http' '

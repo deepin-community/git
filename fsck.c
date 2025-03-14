@@ -1,3 +1,5 @@
+#define USE_THE_REPOSITORY_VARIABLE
+
 #include "git-compat-util.h"
 #include "date.h"
 #include "dir.h"
@@ -20,7 +22,6 @@
 #include "packfile.h"
 #include "submodule-config.h"
 #include "config.h"
-#include "credential.h"
 #include "help.h"
 
 static ssize_t max_tree_entry_len = 4096;
@@ -204,7 +205,8 @@ void fsck_set_msg_types(struct fsck_options *options, const char *values)
 		if (!strcmp(buf, "skiplist")) {
 			if (equal == len)
 				die("skiplist requires a path");
-			oidset_parse_file(&options->skiplist, buf + equal + 1);
+			oidset_parse_file(&options->skip_oids, buf + equal + 1,
+					  the_repository->hash_algo);
 			buf += len + 1;
 			continue;
 		}
@@ -221,23 +223,23 @@ void fsck_set_msg_types(struct fsck_options *options, const char *values)
 static int object_on_skiplist(struct fsck_options *opts,
 			      const struct object_id *oid)
 {
-	return opts && oid && oidset_contains(&opts->skiplist, oid);
+	return opts && oid && oidset_contains(&opts->skip_oids, oid);
 }
 
-__attribute__((format (printf, 5, 6)))
-static int report(struct fsck_options *options,
-		  const struct object_id *oid, enum object_type object_type,
-		  enum fsck_msg_id msg_id, const char *fmt, ...)
+/*
+ * Provide the common functionality for either fscking refs or objects.
+ * It will get the current msg error type and call the error_func callback
+ * which is registered in the "fsck_options" struct.
+ */
+static int fsck_vreport(struct fsck_options *options,
+			void *fsck_report,
+			enum fsck_msg_id msg_id, const char *fmt, va_list ap)
 {
-	va_list ap;
 	struct strbuf sb = STRBUF_INIT;
 	enum fsck_msg_type msg_type = fsck_msg_type(msg_id, options);
 	int result;
 
 	if (msg_type == FSCK_IGNORE)
-		return 0;
-
-	if (object_on_skiplist(options, oid))
 		return 0;
 
 	if (msg_type == FSCK_FATAL)
@@ -248,13 +250,46 @@ static int report(struct fsck_options *options,
 	prepare_msg_ids();
 	strbuf_addf(&sb, "%s: ", msg_id_info[msg_id].camelcased);
 
-	va_start(ap, fmt);
 	strbuf_vaddf(&sb, fmt, ap);
-	result = options->error_func(options, oid, object_type,
+	result = options->error_func(options, fsck_report,
 				     msg_type, msg_id, sb.buf);
 	strbuf_release(&sb);
+
+	return result;
+}
+
+__attribute__((format (printf, 5, 6)))
+static int report(struct fsck_options *options,
+		  const struct object_id *oid, enum object_type object_type,
+		  enum fsck_msg_id msg_id, const char *fmt, ...)
+{
+	va_list ap;
+	struct fsck_object_report report = {
+		.oid = oid,
+		.object_type = object_type
+	};
+	int result;
+
+	if (object_on_skiplist(options, oid))
+		return 0;
+
+	va_start(ap, fmt);
+	result = fsck_vreport(options, &report, msg_id, fmt, ap);
 	va_end(ap);
 
+	return result;
+}
+
+int fsck_report_ref(struct fsck_options *options,
+		    struct fsck_ref_report *report,
+		    enum fsck_msg_id msg_id,
+		    const char *fmt, ...)
+{
+	va_list ap;
+	int result;
+	va_start(ap, fmt);
+	result = fsck_vreport(options, report, msg_id, fmt, ap);
+	va_end(ap);
 	return result;
 }
 
@@ -328,7 +363,8 @@ static int fsck_walk_tree(struct tree *tree, void *data, struct fsck_options *op
 		return -1;
 
 	name = fsck_get_object_name(options, &tree->object.oid);
-	if (init_tree_desc_gently(&desc, tree->buffer, tree->size, 0))
+	if (init_tree_desc_gently(&desc, &tree->object.oid,
+				  tree->buffer, tree->size, 0))
 		return -1;
 	while (tree_entry_gently(&desc, &entry)) {
 		struct object *obj;
@@ -599,7 +635,8 @@ static int fsck_tree(const struct object_id *tree_oid,
 	const char *o_name;
 	struct name_stack df_dup_candidates = { NULL };
 
-	if (init_tree_desc_gently(&desc, buffer, size, TREE_DESC_RAW_MODES)) {
+	if (init_tree_desc_gently(&desc, tree_oid, buffer, size,
+				  TREE_DESC_RAW_MODES)) {
 		retval += report(options, tree_oid, OBJ_TREE,
 				 FSCK_MSG_BAD_TREE,
 				 "cannot be parsed as a tree");
@@ -657,8 +694,6 @@ static int fsck_tree(const struct object_id *tree_oid,
 				retval += report(options, tree_oid, OBJ_TREE,
 						 FSCK_MSG_MAILMAP_SYMLINK,
 						 ".mailmap is a symlink");
-			oidset_insert(&options->symlink_targets_found,
-				      entry_oid);
 		}
 
 		if ((backslash = strchr(name, '\\'))) {
@@ -1049,138 +1084,6 @@ done:
 	return ret;
 }
 
-static int starts_with_dot_slash(const char *const path)
-{
-	return path_match_flags(path, PATH_MATCH_STARTS_WITH_DOT_SLASH |
-				PATH_MATCH_XPLATFORM);
-}
-
-static int starts_with_dot_dot_slash(const char *const path)
-{
-	return path_match_flags(path, PATH_MATCH_STARTS_WITH_DOT_DOT_SLASH |
-				PATH_MATCH_XPLATFORM);
-}
-
-static int submodule_url_is_relative(const char *url)
-{
-	return starts_with_dot_slash(url) || starts_with_dot_dot_slash(url);
-}
-
-/*
- * Count directory components that a relative submodule URL should chop
- * from the remote_url it is to be resolved against.
- *
- * In other words, this counts "../" components at the start of a
- * submodule URL.
- *
- * Returns the number of directory components to chop and writes a
- * pointer to the next character of url after all leading "./" and
- * "../" components to out.
- */
-static int count_leading_dotdots(const char *url, const char **out)
-{
-	int result = 0;
-	while (1) {
-		if (starts_with_dot_dot_slash(url)) {
-			result++;
-			url += strlen("../");
-			continue;
-		}
-		if (starts_with_dot_slash(url)) {
-			url += strlen("./");
-			continue;
-		}
-		*out = url;
-		return result;
-	}
-}
-/*
- * Check whether a transport is implemented by git-remote-curl.
- *
- * If it is, returns 1 and writes the URL that would be passed to
- * git-remote-curl to the "out" parameter.
- *
- * Otherwise, returns 0 and leaves "out" untouched.
- *
- * Examples:
- *   http::https://example.com/repo.git -> 1, https://example.com/repo.git
- *   https://example.com/repo.git -> 1, https://example.com/repo.git
- *   git://example.com/repo.git -> 0
- *
- * This is for use in checking for previously exploitable bugs that
- * required a submodule URL to be passed to git-remote-curl.
- */
-static int url_to_curl_url(const char *url, const char **out)
-{
-	/*
-	 * We don't need to check for case-aliases, "http.exe", and so
-	 * on because in the default configuration, is_transport_allowed
-	 * prevents URLs with those schemes from being cloned
-	 * automatically.
-	 */
-	if (skip_prefix(url, "http::", out) ||
-	    skip_prefix(url, "https::", out) ||
-	    skip_prefix(url, "ftp::", out) ||
-	    skip_prefix(url, "ftps::", out))
-		return 1;
-	if (starts_with(url, "http://") ||
-	    starts_with(url, "https://") ||
-	    starts_with(url, "ftp://") ||
-	    starts_with(url, "ftps://")) {
-		*out = url;
-		return 1;
-	}
-	return 0;
-}
-
-static int check_submodule_url(const char *url)
-{
-	const char *curl_url;
-
-	if (looks_like_command_line_option(url))
-		return -1;
-
-	if (submodule_url_is_relative(url) || starts_with(url, "git://")) {
-		char *decoded;
-		const char *next;
-		int has_nl;
-
-		/*
-		 * This could be appended to an http URL and url-decoded;
-		 * check for malicious characters.
-		 */
-		decoded = url_decode(url);
-		has_nl = !!strchr(decoded, '\n');
-
-		free(decoded);
-		if (has_nl)
-			return -1;
-
-		/*
-		 * URLs which escape their root via "../" can overwrite
-		 * the host field and previous components, resolving to
-		 * URLs like https::example.com/submodule.git and
-		 * https:///example.com/submodule.git that were
-		 * susceptible to CVE-2020-11008.
-		 */
-		if (count_leading_dotdots(url, &next) > 0 &&
-		    (*next == ':' || *next == '/'))
-			return -1;
-	}
-
-	else if (url_to_curl_url(url, &curl_url)) {
-		struct credential c = CREDENTIAL_INIT;
-		int ret = 0;
-		if (credential_from_url_gently(&c, curl_url, 1) ||
-		    !*c.host)
-			ret = -1;
-		credential_clear(&c);
-		return ret;
-	}
-
-	return 0;
-}
-
 struct fsck_gitmodules_data {
 	const struct object_id *oid;
 	struct fsck_options *options;
@@ -1299,56 +1202,6 @@ static int fsck_blob(const struct object_id *oid, const char *buf,
 		}
 	}
 
-	if (oidset_contains(&options->symlink_targets_found, oid)) {
-		const char *ptr = buf;
-		const struct object_id *reported = NULL;
-
-		oidset_insert(&options->symlink_targets_done, oid);
-
-		if (!buf || size > PATH_MAX) {
-			/*
-			 * A missing buffer here is a sign that the caller found the
-			 * blob too gigantic to load into memory. Let's just consider
-			 * that an error.
-			 */
-			return report(options, oid, OBJ_BLOB,
-					FSCK_MSG_SYMLINK_TARGET_LENGTH,
-					"symlink target too long");
-		}
-
-		while (!reported && ptr) {
-			const char *p = ptr;
-			char c, *slash = strchrnul(ptr, '/');
-			char *backslash = memchr(ptr, '\\', slash - ptr);
-
-			c = *slash;
-			*slash = '\0';
-
-			while (!reported && backslash) {
-				*backslash = '\0';
-				if (is_ntfs_dotgit(p))
-					ret |= report(options, reported = oid, OBJ_BLOB,
-						      FSCK_MSG_SYMLINK_POINTS_TO_GIT_DIR,
-						      "symlink target points to git dir");
-				*backslash = '\\';
-				p = backslash + 1;
-				backslash = memchr(p, '\\', slash - p);
-			}
-			if (!reported && is_ntfs_dotgit(p))
-				ret |= report(options, reported = oid, OBJ_BLOB,
-					      FSCK_MSG_SYMLINK_POINTS_TO_GIT_DIR,
-					      "symlink target points to git dir");
-
-			if (!reported && is_hfs_dotgit(ptr))
-				ret |= report(options, reported = oid, OBJ_BLOB,
-					      FSCK_MSG_SYMLINK_POINTS_TO_GIT_DIR,
-					      "symlink target points to git dir");
-
-			*slash = c;
-			ptr = c ? slash + 1 : NULL;
-		}
-	}
-
 	return ret;
 }
 
@@ -1362,7 +1215,7 @@ int fsck_object(struct object *obj, void *data, unsigned long size,
 }
 
 int fsck_buffer(const struct object_id *oid, enum object_type type,
-		void *data, unsigned long size,
+		const void *data, unsigned long size,
 		struct fsck_options *options)
 {
 	if (type == OBJ_BLOB)
@@ -1380,19 +1233,47 @@ int fsck_buffer(const struct object_id *oid, enum object_type type,
 		      type);
 }
 
-int fsck_error_function(struct fsck_options *o,
-			const struct object_id *oid,
-			enum object_type object_type UNUSED,
-			enum fsck_msg_type msg_type,
-			enum fsck_msg_id msg_id UNUSED,
-			const char *message)
+int fsck_objects_error_function(struct fsck_options *o,
+				void *fsck_report,
+				enum fsck_msg_type msg_type,
+				enum fsck_msg_id msg_id UNUSED,
+				const char *message)
 {
+	struct fsck_object_report *report = fsck_report;
+	const struct object_id *oid = report->oid;
+
 	if (msg_type == FSCK_WARN) {
 		warning("object %s: %s", fsck_describe_object(o, oid), message);
 		return 0;
 	}
 	error("object %s: %s", fsck_describe_object(o, oid), message);
 	return 1;
+}
+
+int fsck_refs_error_function(struct fsck_options *options UNUSED,
+			     void *fsck_report,
+			     enum fsck_msg_type msg_type,
+			     enum fsck_msg_id msg_id UNUSED,
+			     const char *message)
+{
+	struct fsck_ref_report *report = fsck_report;
+	struct strbuf sb = STRBUF_INIT;
+	int ret = 0;
+
+	strbuf_addstr(&sb, report->path);
+
+	if (report->oid)
+		strbuf_addf(&sb, " -> (%s)", oid_to_hex(report->oid));
+	else if (report->referent)
+		strbuf_addf(&sb, " -> (%s)", report->referent);
+
+	if (msg_type == FSCK_WARN)
+		warning("%s: %s", sb.buf, message);
+	else
+		ret = error("%s: %s", sb.buf, message);
+
+	strbuf_release(&sb);
+	return ret;
 }
 
 static int fsck_blobs(struct oidset *blobs_found, struct oidset *blobs_done,
@@ -1447,11 +1328,18 @@ int fsck_finish(struct fsck_options *options)
 			  FSCK_MSG_GITATTRIBUTES_MISSING, FSCK_MSG_GITATTRIBUTES_BLOB,
 			  options, ".gitattributes");
 
-	ret |= fsck_blobs(&options->symlink_targets_found, &options->symlink_targets_done,
-			  FSCK_MSG_SYMLINK_TARGET_MISSING, FSCK_MSG_SYMLINK_TARGET_BLOB,
-			  options, "<symlink-target>");
-
 	return ret;
+}
+
+void fsck_options_clear(struct fsck_options *options)
+{
+	free(options->msg_type);
+	oidset_clear(&options->skip_oids);
+	oidset_clear(&options->gitmodules_found);
+	oidset_clear(&options->gitmodules_done);
+	oidset_clear(&options->gitattributes_found);
+	oidset_clear(&options->gitattributes_done);
+	kh_clear_oid_map(options->object_names);
 }
 
 int git_fsck_config(const char *var, const char *value,
@@ -1461,13 +1349,13 @@ int git_fsck_config(const char *var, const char *value,
 	const char *msg_id;
 
 	if (strcmp(var, "fsck.skiplist") == 0) {
-		const char *path;
+		char *path;
 		struct strbuf sb = STRBUF_INIT;
 
 		if (git_config_pathname(&path, var, value))
 			return 1;
 		strbuf_addf(&sb, "skiplist=%s", path);
-		free((char *)path);
+		free(path);
 		fsck_set_msg_types(options, sb.buf);
 		strbuf_release(&sb);
 		return 0;
@@ -1487,16 +1375,17 @@ int git_fsck_config(const char *var, const char *value,
  * Custom error callbacks that are used in more than one place.
  */
 
-int fsck_error_cb_print_missing_gitmodules(struct fsck_options *o,
-					   const struct object_id *oid,
-					   enum object_type object_type,
-					   enum fsck_msg_type msg_type,
-					   enum fsck_msg_id msg_id,
-					   const char *message)
+int fsck_objects_error_cb_print_missing_gitmodules(struct fsck_options *o,
+						   void *fsck_report,
+						   enum fsck_msg_type msg_type,
+						   enum fsck_msg_id msg_id,
+						   const char *message)
 {
 	if (msg_id == FSCK_MSG_GITMODULES_MISSING) {
-		puts(oid_to_hex(oid));
+		struct fsck_object_report *report = fsck_report;
+		puts(oid_to_hex(report->oid));
 		return 0;
 	}
-	return fsck_error_function(o, oid, object_type, msg_type, msg_id, message);
+	return fsck_objects_error_function(o, fsck_report,
+					   msg_type, msg_id, message);
 }

@@ -245,7 +245,7 @@ static int is_fixed(const char *s, size_t len)
 #ifdef USE_LIBPCRE2
 #define GREP_PCRE2_DEBUG_MALLOC 0
 
-static void *pcre2_malloc(PCRE2_SIZE size, MAYBE_UNUSED void *memory_data)
+static void *pcre2_malloc(PCRE2_SIZE size, void *memory_data UNUSED)
 {
 	void *pointer = malloc(size);
 #if GREP_PCRE2_DEBUG_MALLOC
@@ -255,7 +255,7 @@ static void *pcre2_malloc(PCRE2_SIZE size, MAYBE_UNUSED void *memory_data)
 	return pointer;
 }
 
-static void pcre2_free(void *pointer, MAYBE_UNUSED void *memory_data)
+static void pcre2_free(void *pointer, void *memory_data UNUSED)
 {
 #if GREP_PCRE2_DEBUG_MALLOC
 	static int count = 1;
@@ -621,7 +621,7 @@ static struct grep_expr *compile_pattern_atom(struct grep_pat **list)
 		*list = p->next;
 		x = compile_pattern_or(list);
 		if (!*list || (*list)->token != GREP_CLOSE_PAREN)
-			die("unmatched parenthesis");
+			die("unmatched ( for expression group");
 		*list = (*list)->next;
 		return x;
 	default:
@@ -792,7 +792,7 @@ void compile_grep_patterns(struct grep_opt *opt)
 	if (p)
 		opt->pattern_expression = compile_pattern_expr(&p);
 	if (p)
-		die("incomplete pattern expression: %s", p->pattern);
+		die("incomplete pattern expression group: %s", p->pattern);
 
 	if (opt->no_body_match && opt->pattern_expression)
 		opt->pattern_expression = grep_not_expr(opt->pattern_expression);
@@ -843,11 +843,11 @@ static void free_grep_pat(struct grep_pat *pattern)
 				free_pcre2_pattern(p);
 			else
 				regfree(&p->regexp);
-			free(p->pattern);
 			break;
 		default:
 			break;
 		}
+		free(p->pattern);
 		free(p);
 	}
 }
@@ -1735,7 +1735,8 @@ static int grep_source_1(struct grep_opt *opt, struct grep_source *gs, int colle
 				peek_eol = end_of_line(peek_bol, &peek_left);
 			}
 
-			if (match_funcname(opt, gs, peek_bol, peek_eol))
+			if (peek_bol >= gs->buf + gs->size ||
+			    match_funcname(opt, gs, peek_bol, peek_eol))
 				show_function = 0;
 		}
 		if (show_function ||

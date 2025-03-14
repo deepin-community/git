@@ -175,6 +175,46 @@ test_expect_success 'with only a title in the message' '
 	test_cmp expected actual
 '
 
+test_expect_success 'with a bodiless message that lacks a trailing newline after the subject' '
+	cat >expected <<-\EOF &&
+		area: change
+
+		Reviewed-by: Peff
+		Acked-by: Johan
+	EOF
+	printf "area: change" |
+	git interpret-trailers --trailer "Reviewed-by: Peff" \
+		--trailer "Acked-by: Johan" >actual &&
+	test_cmp expected actual
+'
+
+test_expect_success 'with a bodied message that lacks a trailing newline after the body' '
+	cat >expected <<-\EOF &&
+		area: change
+
+		details about the change.
+
+		Reviewed-by: Peff
+		Acked-by: Johan
+	EOF
+	printf "area: change\n\ndetails about the change." |
+	git interpret-trailers --trailer "Reviewed-by: Peff" \
+		--trailer "Acked-by: Johan" >actual &&
+	test_cmp expected actual
+'
+
+test_expect_success 'with a message that lacks a trailing newline after the trailers' '
+	cat >expected <<-\EOF &&
+		area: change
+
+		Reviewed-by: Peff
+		Acked-by: Johan
+	EOF
+	printf "area: change\n\nReviewed-by: Peff" |
+	git interpret-trailers --trailer "Acked-by: Johan" >actual &&
+	test_cmp expected actual
+'
+
 test_expect_success 'with multiline title in the message' '
 	cat >expected <<-\EOF &&
 		place of
@@ -1930,6 +1970,20 @@ test_expect_success 'suppressing --- does not disable cut-line handling' '
 	# ------------------------ >8 ------------------------
 	# Nothing below this line counts as part of the commit message.
 	not-a-trailer: too late
+	EOF
+
+	test_cmp expected actual
+'
+
+test_expect_success 'handling of --- lines in conjunction with cut-lines' '
+	echo "my-trailer: here" >expected &&
+
+	git interpret-trailers --parse >actual <<-\EOF &&
+	subject
+
+	my-trailer: here
+	---
+	# ------------------------ >8 ------------------------
 	EOF
 
 	test_cmp expected actual

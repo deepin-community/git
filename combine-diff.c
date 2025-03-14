@@ -1,3 +1,5 @@
+#define USE_THE_REPOSITORY_VARIABLE
+
 #include "git-compat-util.h"
 #include "object-store-ll.h"
 #include "commit.h"
@@ -337,6 +339,8 @@ static char *grab_blob(struct repository *r,
 		free_filespec(df);
 	} else {
 		blob = repo_read_object_file(r, oid, &type, size);
+		if (!blob)
+			die(_("unable to read %s"), oid_to_hex(oid));
 		if (type != OBJ_BLOB)
 			die("object '%s' is not a blob!", oid_to_hex(oid));
 	}
@@ -1064,7 +1068,8 @@ static void show_patch_diff(struct combine_diff_path *elem, int num_parent,
 			elem->mode = canon_mode(st.st_mode);
 		} else if (S_ISDIR(st.st_mode)) {
 			struct object_id oid;
-			if (resolve_gitlink_ref(elem->path, "HEAD", &oid) < 0)
+			if (repo_resolve_gitlink_ref(the_repository, elem->path,
+						     "HEAD", &oid) < 0)
 				result = grab_blob(opt->repo, &elem->oid,
 						   elem->mode, &result_size,
 						   NULL, NULL);
@@ -1388,9 +1393,8 @@ static struct combine_diff_path *find_paths_generic(const struct object_id *oid,
 {
 	struct combine_diff_path *paths = NULL;
 	int i, num_parent = parents->nr;
-
 	int output_format = opt->output_format;
-	const char *orderfile = opt->orderfile;
+	char *orderfile = opt->orderfile;
 
 	opt->output_format = DIFF_FORMAT_NO_OUTPUT;
 	/* tell diff_tree to emit paths in sorted (=tree) order */

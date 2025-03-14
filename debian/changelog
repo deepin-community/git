@@ -1,9 +1,67 @@
-git (1:2.43.4-0deepin1) unstable; urgency=medium
+git (1:2.47.2-0.1) unstable; urgency=medium
 
-  * new upstream point release (see RelNotes/2.43.4.txt; addresses
-    CVE-2024-32002, CVE-2024-32004, CVE-2024-32020 and CVE-2024-32021).
+  * Non-maintainer upload.
+  * new upstream release (see Documentation/RelNotes/2.47.2.txt; addresses
+    CVE-2024-50349 and CVE-2024-52006; Closes: #1093042).
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 15 May 2024 13:23:32 +0800
+ -- Salvatore Bonaccorso <carnil@debian.org>  Sun, 19 Jan 2025 09:06:17 +0100
+
+git (1:2.47.1-1) unstable; urgency=low
+
+  * new upstream release (see RelNotes/2.46.0.txt, RelNotes/2.47.0.txt).
+  * new upstream point release (see RelNotes/2.47.1.txt).
+  * remove unsafe and under-maintained packages that install an
+    unsecured git-daemon services (thx Chris Hofstaedtler; closes:
+    #1078778, #1020284).
+
+ -- Jonathan Nieder <jrnieder@gmail.com>  Thu, 02 Jan 2025 13:12:25 +0100
+
+git (1:2.45.2-1.3) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Revert my two previous NMUs as I don't have the time to fully clean
+    up the situation. Reopens: #1020284 #1078778
+    Closes: #1088019
+
+ -- Chris Hofstaedtler <zeha@debian.org>  Sun, 22 Dec 2024 16:52:50 +0100
+
+git (1:2.45.2-1.2) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * git-daemon-run.postinst: Avoid hard failure when update-service
+    is not installed yet.
+  * git-daemon-run.postrm: stop passing -f to deluser (Closes: #1020284)
+
+ -- Chris Hofstaedtler <zeha@debian.org>  Fri, 08 Nov 2024 17:57:18 +0100
+
+git (1:2.45.2-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Demote "runit" dependency to Recommends.
+    Demoting Depends: runit to Recommends: should have no effect on default
+    installs (apt will install Recommends by default), and people wanting to
+    use runit should have it installed already. (Closes: #1078778)
+
+ -- Chris Hofstaedtler <zeha@debian.org>  Sun, 13 Oct 2024 14:16:01 +0200
+
+git (1:2.45.2-1) unstable; urgency=low
+
+  * new upstream point release (see RelNotes/2.45.2.txt).
+  * debian/patches/*: remove; applied upstream.
+
+ -- Jonathan Nieder <jrnieder@gmail.com>  Sun, 16 Jun 2024 15:40:09 +0000
+
+git (1:2.45.1-1) unstable; urgency=medium
+
+  * new upstream release (see RelNotes/2.44.0.txt, RelNotes/2.45.0.txt).
+  * new upstream point release (see RelNotes/2.45.1.txt; addresses
+    CVE-2024-32002, CVE-2024-32004, CVE-2024-32020, CVE-2024-32021 and
+    CVE-2024-32465; closes: #1071160).
+  * debian/patches/0001..0007: new from upstream: followups intended
+    for v2.45.2 to avoid regressions from the fixes included in
+    v2.45.1 (thx Johannes Schindelin).
+
+ -- Jonathan Nieder <jrnieder@gmail.com>  Mon, 20 May 2024 03:36:58 +0000
 
 git (1:2.43.0-1) unstable; urgency=low
 

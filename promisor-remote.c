@@ -1,3 +1,5 @@
+#define USE_THE_REPOSITORY_VARIABLE
+
 #include "git-compat-util.h"
 #include "gettext.h"
 #include "hex.h"
@@ -8,6 +10,7 @@
 #include "transport.h"
 #include "strvec.h"
 #include "packfile.h"
+#include "environment.h"
 
 struct promisor_remote_config {
 	struct promisor_remote *promisors;
@@ -22,9 +25,9 @@ static int fetch_objects(struct repository *repo,
 	struct child_process child = CHILD_PROCESS_INIT;
 	int i;
 	FILE *child_in;
+	int quiet;
 
-	/* TODO: This should use NO_LAZY_FETCH_ENVIRONMENT */
-	if (git_env_bool("GIT_NO_LAZY_FETCH", 0)) {
+	if (git_env_bool(NO_LAZY_FETCH_ENVIRONMENT, 0)) {
 		static int warning_shown;
 		if (!warning_shown) {
 			warning_shown = 1;
@@ -41,6 +44,8 @@ static int fetch_objects(struct repository *repo,
 		     "fetch", remote_name, "--no-tags",
 		     "--no-write-fetch-head", "--recurse-submodules=no",
 		     "--filter=blob:none", "--stdin", NULL);
+	if (!git_config_get_bool("promisor.quiet", &quiet) && quiet)
+		strvec_push(&child.args, "--quiet");
 	if (start_command(&child))
 		die(_("promisor-remote: unable to fork off fetch subprocess"));
 	child_in = xfdopen(child.in, "w");
@@ -149,6 +154,7 @@ static int promisor_remote_config(const char *var, const char *value,
 		if (!r)
 			return 0;
 
+		FREE_AND_NULL(r->partial_clone_filter);
 		return git_config_string(&r->partial_clone_filter, var, value);
 	}
 
@@ -184,6 +190,7 @@ void promisor_remote_clear(struct promisor_remote_config *config)
 {
 	while (config->promisors) {
 		struct promisor_remote *r = config->promisors;
+		free(r->partial_clone_filter);
 		config->promisors = config->promisors->next;
 		free(r);
 	}

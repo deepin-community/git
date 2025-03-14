@@ -6,6 +6,7 @@ GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
 export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 
 TEST_CREATE_REPO_NO_TEMPLATE=1
+TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 
 . "$TEST_DIRECTORY"/lib-rebase.sh
@@ -123,6 +124,28 @@ test_expect_success 'die the same branch is already checked out' '
 		cd here &&
 		test_must_fail git checkout newmain 2>actual &&
 		grep "already used by worktree at" actual
+	)
+'
+
+test_expect_success 'refuse to reset a branch in use elsewhere' '
+	(
+		cd here &&
+
+		# we know we are on detached HEAD but just in case ...
+		git checkout --detach HEAD &&
+		git rev-parse --verify HEAD >old.head &&
+
+		git rev-parse --verify refs/heads/newmain >old.branch &&
+		test_must_fail git checkout -B newmain 2>error &&
+		git rev-parse --verify refs/heads/newmain >new.branch &&
+		git rev-parse --verify HEAD >new.head &&
+
+		grep "already used by worktree at" error &&
+		test_cmp old.branch new.branch &&
+		test_cmp old.head new.head &&
+
+		# and we must be still on the same detached HEAD state
+		test_must_fail git symbolic-ref HEAD
 	)
 '
 
@@ -405,7 +428,7 @@ test_expect_success '"add" worktree with orphan branch, lock, and reason' '
 # Note: Quoted arguments containing spaces are not supported.
 test_wt_add_orphan_hint () {
 	local context="$1" &&
-	local use_branch=$2 &&
+	local use_branch="$2" &&
 	shift 2 &&
 	local opts="$*" &&
 	test_expect_success "'worktree add' show orphan hint in bad/orphan HEAD w/ $context" '
@@ -468,7 +491,8 @@ test_expect_success 'put a worktree under rebase' '
 		cd under-rebase &&
 		set_fake_editor &&
 		FAKE_LINES="edit 1" git rebase -i HEAD^ &&
-		git worktree list | grep "under-rebase.*detached HEAD"
+		git worktree list >actual &&
+		grep "under-rebase.*detached HEAD" actual
 	)
 '
 
@@ -509,7 +533,8 @@ test_expect_success 'checkout a branch under bisect' '
 		git bisect start &&
 		git bisect bad &&
 		git bisect good HEAD~2 &&
-		git worktree list | grep "under-bisect.*detached HEAD" &&
+		git worktree list >actual &&
+		grep "under-bisect.*detached HEAD" actual &&
 		test_must_fail git worktree add new-bisect under-bisect &&
 		! test -d new-bisect
 	)
