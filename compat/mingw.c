@@ -1,3 +1,5 @@
+#define USE_THE_REPOSITORY_VARIABLE
+
 #include "../git-compat-util.h"
 #include "win32.h"
 #include <aclapi.h>
@@ -26,7 +28,6 @@ static const int delay[] = { 0, 1, 10, 20, 40 };
 void open_in_gdb(void)
 {
 	static struct child_process cp = CHILD_PROCESS_INIT;
-	extern char *_pgmptr;
 
 	strvec_pushl(&cp.args, "mintty", "gdb", NULL);
 	strvec_pushf(&cp.args, "--pid=%d", getpid());
@@ -244,7 +245,8 @@ static enum hide_dotfiles_type hide_dotfiles = HIDE_DOTFILES_DOTGITONLY;
 static char *unset_environment_variables;
 
 int mingw_core_config(const char *var, const char *value,
-		      const struct config_context *ctx, void *cb)
+		      const struct config_context *ctx UNUSED,
+		      void *cb UNUSED)
 {
 	if (!strcmp(var, "core.hidedotfiles")) {
 		if (value && !strcasecmp(value, "dotgitonly"))
@@ -454,7 +456,7 @@ static int set_hidden_flag(const wchar_t *path, int set)
 	return -1;
 }
 
-int mingw_mkdir(const char *path, int mode)
+int mingw_mkdir(const char *path, int mode UNUSED)
 {
 	int ret;
 	wchar_t wpath[MAX_PATH];
@@ -598,7 +600,7 @@ int mingw_open (const char *filename, int oflags, ...)
 	return fd;
 }
 
-static BOOL WINAPI ctrl_ignore(DWORD type)
+static BOOL WINAPI ctrl_ignore(DWORD type UNUSED)
 {
 	return TRUE;
 }
@@ -1086,7 +1088,7 @@ int mkstemp(char *template)
 	return git_mkstemp_mode(template, 0600);
 }
 
-int gettimeofday(struct timeval *tv, void *tz)
+int gettimeofday(struct timeval *tv, void *tz UNUSED)
 {
 	FILETIME ft;
 	long long hnsec;
@@ -1547,7 +1549,7 @@ static int is_msys2_sh(const char *cmd)
 		return ret;
 	}
 
-	if (ends_with(cmd, "\\sh.exe")) {
+	if (ends_with(cmd, "\\sh.exe") || ends_with(cmd, "/sh.exe")) {
 		static char *sh;
 
 		if (!sh)
@@ -2253,7 +2255,7 @@ char *mingw_query_user_email(void)
 	return get_extended_user_info(NameUserPrincipal);
 }
 
-struct passwd *getpwuid(int uid)
+struct passwd *getpwuid(int uid UNUSED)
 {
 	static unsigned initialized;
 	static char user_name[100];
@@ -2279,7 +2281,11 @@ struct passwd *getpwuid(int uid)
 	p->pw_name = user_name;
 	p->pw_gecos = get_extended_user_info(NameDisplay);
 	if (!p->pw_gecos)
-		p->pw_gecos = "unknown";
+		/*
+		 * Data returned by getpwuid(3P) is treated as internal and
+		 * must never be written to or freed.
+		 */
+		p->pw_gecos = (char *) "unknown";
 	p->pw_dir = NULL;
 
 	initialized = 1;
@@ -2301,7 +2307,7 @@ static sig_handler_t timer_fn = SIG_DFL, sigint_fn = SIG_DFL;
  * length to call the signal handler.
  */
 
-static unsigned __stdcall ticktack(void *dummy)
+static unsigned __stdcall ticktack(void *dummy UNUSED)
 {
 	while (WaitForSingleObject(timer_event, timer_interval) == WAIT_TIMEOUT) {
 		mingw_raise(SIGALRM);
@@ -2349,7 +2355,7 @@ static inline int is_timeval_eq(const struct timeval *i1, const struct timeval *
 	return i1->tv_sec == i2->tv_sec && i1->tv_usec == i2->tv_usec;
 }
 
-int setitimer(int type, struct itimerval *in, struct itimerval *out)
+int setitimer(int type UNUSED, struct itimerval *in, struct itimerval *out)
 {
 	static const struct timeval zero;
 	static int atexit_done;
@@ -2695,6 +2701,30 @@ static PSID get_current_user_sid(void)
 	return result;
 }
 
+static BOOL user_sid_to_user_name(PSID sid, LPSTR *str)
+{
+	SID_NAME_USE pe_use;
+	DWORD len_user = 0, len_domain = 0;
+	BOOL translate_sid_to_user;
+
+	/*
+	 * returns only FALSE, because the string pointers are NULL
+	 */
+	LookupAccountSidA(NULL, sid, NULL, &len_user, NULL, &len_domain,
+			  &pe_use);
+	/*
+	 * Alloc needed space of the strings
+	 */
+	ALLOC_ARRAY((*str), (size_t)len_domain + (size_t)len_user);
+	translate_sid_to_user = LookupAccountSidA(NULL, sid,
+	    (*str) + len_domain, &len_user, *str, &len_domain, &pe_use);
+	if (!translate_sid_to_user)
+		FREE_AND_NULL(*str);
+	else
+		(*str)[len_domain] = '/';
+	return translate_sid_to_user;
+}
+
 static int acls_supported(const char *path)
 {
 	size_t offset = offset_1st_component(path);
@@ -2776,27 +2806,47 @@ int is_path_owned_by_current_sid(const char *path, struct strbuf *report)
 			strbuf_addf(report, "'%s' is on a file system that does "
 				    "not record ownership\n", path);
 		} else if (report) {
-			LPSTR str1, str2, to_free1 = NULL, to_free2 = NULL;
+			PCSTR str1, str2, str3, str4;
+			LPSTR to_free1 = NULL, to_free3 = NULL,
+			    to_local_free2 = NULL, to_local_free4 = NULL;
 
-			if (ConvertSidToStringSidA(sid, &str1))
-				to_free1 = str1;
+			if (user_sid_to_user_name(sid, &to_free1))
+				str1 = to_free1;
 			else
 				str1 = "(inconvertible)";
-
-			if (!current_user_sid)
-				str2 = "(none)";
-			else if (!IsValidSid(current_user_sid))
-				str2 = "(invalid)";
-			else if (ConvertSidToStringSidA(current_user_sid, &str2))
-				to_free2 = str2;
+			if (ConvertSidToStringSidA(sid, &to_local_free2))
+				str2 = to_local_free2;
 			else
 				str2 = "(inconvertible)";
+
+			if (!current_user_sid) {
+				str3 = "(none)";
+				str4 = "(none)";
+			}
+			else if (!IsValidSid(current_user_sid)) {
+				str3 = "(invalid)";
+				str4 = "(invalid)";
+			} else {
+				if (user_sid_to_user_name(current_user_sid,
+							  &to_free3))
+					str3 = to_free3;
+				else
+					str3 = "(inconvertible)";
+				if (ConvertSidToStringSidA(current_user_sid,
+							   &to_local_free4))
+					str4 = to_local_free4;
+				else
+					str4 = "(inconvertible)";
+			}
 			strbuf_addf(report,
 				    "'%s' is owned by:\n"
-				    "\t'%s'\nbut the current user is:\n"
-				    "\t'%s'\n", path, str1, str2);
-			LocalFree(to_free1);
-			LocalFree(to_free2);
+				    "\t%s (%s)\nbut the current user is:\n"
+				    "\t%s (%s)\n",
+				    path, str1, str2, str3, str4);
+			free(to_free1);
+			LocalFree(to_local_free2);
+			free(to_free3);
+			LocalFree(to_local_free4);
 		}
 	}
 
@@ -3114,3 +3164,24 @@ int uname(struct utsname *buf)
 		  "%u", (v >> 16) & 0x7fff);
 	return 0;
 }
+
+#ifndef NO_UNIX_SOCKETS
+int mingw_have_unix_sockets(void)
+{
+	SC_HANDLE scm, srvc;
+	SERVICE_STATUS_PROCESS status;
+	DWORD bytes;
+	int ret = 0;
+	scm = OpenSCManagerA(NULL, NULL, SC_MANAGER_CONNECT);
+	if (scm) {
+		srvc = OpenServiceA(scm, "afunix", SERVICE_QUERY_STATUS);
+		if (srvc) {
+			if(QueryServiceStatusEx(srvc, SC_STATUS_PROCESS_INFO, (LPBYTE)&status, sizeof(SERVICE_STATUS_PROCESS), &bytes))
+				ret = status.dwCurrentState == SERVICE_RUNNING;
+			CloseServiceHandle(srvc);
+		}
+		CloseServiceHandle(scm);
+	}
+	return ret;
+}
+#endif

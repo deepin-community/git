@@ -3,6 +3,7 @@
  *
  * Copyright (C) Linus Torvalds, 2005
  */
+#define USE_THE_REPOSITORY_VARIABLE
 #include "builtin.h"
 #include "abspath.h"
 #include "environment.h"
@@ -10,6 +11,7 @@
 #include "object-file.h"
 #include "parse-options.h"
 #include "path.h"
+#include "refs.h"
 #include "setup.h"
 #include "strbuf.h"
 
@@ -56,6 +58,7 @@ static int shared_callback(const struct option *opt, const char *arg, int unset)
 static const char *const init_db_usage[] = {
 	N_("git init [-q | --quiet] [--bare] [--template=<template-directory>]\n"
 	   "         [--separate-git-dir <git-dir>] [--object-format=<format>]\n"
+	   "         [--ref-format=<format>]\n"
 	   "         [-b <branch-name> | --initial-branch=<branch-name>]\n"
 	   "         [--shared[=<permissions>]] [<directory>]"),
 	NULL
@@ -67,7 +70,10 @@ static const char *const init_db_usage[] = {
  * On the other hand, it might just make lookup slower and messier. You
  * be the judge.  The default case is to have one DB per managed directory.
  */
-int cmd_init_db(int argc, const char **argv, const char *prefix)
+int cmd_init_db(int argc,
+		const char **argv,
+		const char *prefix,
+		struct repository *repo UNUSED)
 {
 	const char *git_dir;
 	const char *real_git_dir = NULL;
@@ -75,8 +81,10 @@ int cmd_init_db(int argc, const char **argv, const char *prefix)
 	const char *template_dir = NULL;
 	unsigned int flags = 0;
 	const char *object_format = NULL;
+	const char *ref_format = NULL;
 	const char *initial_branch = NULL;
 	int hash_algo = GIT_HASH_UNKNOWN;
+	enum ref_storage_format ref_storage_format = REF_STORAGE_FORMAT_UNKNOWN;
 	int init_shared_repository = -1;
 	const struct option init_db_options[] = {
 		OPT_STRING(0, "template", &template_dir, N_("template-directory"),
@@ -94,6 +102,8 @@ int cmd_init_db(int argc, const char **argv, const char *prefix)
 			   N_("override the name of the initial branch")),
 		OPT_STRING(0, "object-format", &object_format, N_("hash"),
 			   N_("specify the hash algorithm to use")),
+		OPT_STRING(0, "ref-format", &ref_format, N_("format"),
+			   N_("specify the reference format to use")),
 		OPT_END()
 	};
 
@@ -157,6 +167,12 @@ int cmd_init_db(int argc, const char **argv, const char *prefix)
 			die(_("unknown hash algorithm '%s'"), object_format);
 	}
 
+	if (ref_format) {
+		ref_storage_format = ref_storage_format_by_name(ref_format);
+		if (ref_storage_format == REF_STORAGE_FORMAT_UNKNOWN)
+			die(_("unknown ref storage format '%s'"), ref_format);
+	}
+
 	if (init_shared_repository != -1)
 		set_shared_repository(init_shared_repository);
 
@@ -218,9 +234,9 @@ int cmd_init_db(int argc, const char **argv, const char *prefix)
 			set_git_work_tree(work_tree);
 		else
 			set_git_work_tree(git_work_tree_cfg);
-		if (access(get_git_work_tree(), X_OK))
+		if (access(repo_get_work_tree(the_repository), X_OK))
 			die_errno (_("Cannot access work tree '%s'"),
-				   get_git_work_tree());
+				   repo_get_work_tree(the_repository));
 	}
 	else {
 		if (real_git_dir)
@@ -235,5 +251,6 @@ int cmd_init_db(int argc, const char **argv, const char *prefix)
 
 	flags |= INIT_DB_EXIST_OK;
 	return init_db(git_dir, real_git_dir, template_dir, hash_algo,
-		       initial_branch, init_shared_repository, flags);
+		       ref_storage_format, initial_branch,
+		       init_shared_repository, flags);
 }

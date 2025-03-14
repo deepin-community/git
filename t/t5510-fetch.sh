@@ -5,6 +5,7 @@ test_description='Per branch config variables affects "git fetch".
 
 '
 
+TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 . "$TEST_DIRECTORY"/lib-bundle.sh
 
@@ -169,6 +170,7 @@ test_expect_success REFFILES 'fetch --prune fails to delete branches' '
 	git clone . prune-fail &&
 	cd prune-fail &&
 	git update-ref refs/remotes/origin/extrabranch main &&
+	git pack-refs --all &&
 	: this will prevent --prune from locking packed-refs for deleting refs, but adding loose refs still succeeds  &&
 	>.git/packed-refs.new &&
 
@@ -517,7 +519,7 @@ test_expect_success 'fetch with a non-applying branch.<name>.merge' '
 test_expect_success 'fetch from GIT URL with a non-applying branch.<name>.merge [1]' '
 	one_head=$(cd one && git rev-parse HEAD) &&
 	this_head=$(git rev-parse HEAD) &&
-	git update-ref -d FETCH_HEAD &&
+	rm .git/FETCH_HEAD &&
 	git fetch one &&
 	test $one_head = "$(git rev-parse --verify FETCH_HEAD)" &&
 	test $this_head = "$(git rev-parse --verify HEAD)"
@@ -529,7 +531,7 @@ test_expect_success 'fetch from GIT URL with a non-applying branch.<name>.merge 
 	one_ref=$(cd one && git symbolic-ref HEAD) &&
 	git config branch.main.remote blub &&
 	git config branch.main.merge "$one_ref" &&
-	git update-ref -d FETCH_HEAD &&
+	rm .git/FETCH_HEAD &&
 	git fetch one &&
 	test $one_head = "$(git rev-parse --verify FETCH_HEAD)" &&
 	test $this_head = "$(git rev-parse --verify HEAD)"
@@ -539,7 +541,7 @@ test_expect_success 'fetch from GIT URL with a non-applying branch.<name>.merge 
 # the merge spec does not match the branch the remote HEAD points to
 test_expect_success 'fetch from GIT URL with a non-applying branch.<name>.merge [3]' '
 	git config branch.main.merge "${one_ref}_not" &&
-	git update-ref -d FETCH_HEAD &&
+	rm .git/FETCH_HEAD &&
 	git fetch one &&
 	test $one_head = "$(git rev-parse --verify FETCH_HEAD)" &&
 	test $this_head = "$(git rev-parse --verify HEAD)"
@@ -1088,6 +1090,22 @@ test_expect_success 'branchname D/F conflict resolved by --prune' '
 	) &&
 	git rev-parse dir >expect &&
 	test_cmp expect actual
+'
+
+test_expect_success 'branchname D/F conflict rejected with targeted error message' '
+	git clone . df-conflict-error &&
+	git branch dir_conflict &&
+	(
+		cd df-conflict-error &&
+		git update-ref refs/remotes/origin/dir_conflict/file HEAD &&
+		test_must_fail git fetch 2>err &&
+		test_grep "error: some local refs could not be updated; try running" err &&
+		test_grep " ${SQ}git remote prune origin${SQ} to remove any old, conflicting branches" err &&
+		git pack-refs --all &&
+		test_must_fail git fetch 2>err-packed &&
+		test_grep "error: some local refs could not be updated; try running" err-packed &&
+		test_grep " ${SQ}git remote prune origin${SQ} to remove any old, conflicting branches" err-packed
+	)
 '
 
 test_expect_success 'fetching a one-level ref works' '

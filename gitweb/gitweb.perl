@@ -728,9 +728,11 @@ our $per_request_config = 1;
 sub read_config_file {
 	my $filename = shift;
 	return unless defined $filename;
-	# die if there are errors parsing config file
 	if (-e $filename) {
 		do $filename;
+		# die if there is a problem accessing the file
+		die $! if $!;
+		# die if there are errors parsing config file
 		die $@ if $@;
 		return 1;
 	}
@@ -8324,10 +8326,10 @@ XML
 		my %co = %{$commitlist[$i]};
 		my $commit = $co{'id'};
 		# we read 150, we always show 30 and the ones more recent than 48 hours
-		if (($i >= 20) && ((time - $co{'author_epoch'}) > 48*60*60)) {
+		if (($i >= 20) && ((time - $co{'committer_epoch'}) > 48*60*60)) {
 			last;
 		}
-		my %cd = parse_date($co{'author_epoch'}, $co{'author_tz'});
+		my %cd = parse_date($co{'committer_epoch'}, $co{'committer_tz'});
 
 		# get list of changed files
 		open my $fd, "-|", git_cmd(), "diff-tree", '-r', @diff_opts,

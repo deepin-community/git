@@ -4,7 +4,7 @@
  * Copyright (c) 2006 Kristian Høgsberg <krh@redhat.com>
  * Based on git-branch.sh by Junio C Hamano.
  */
-
+#define USE_THE_REPOSITORY_VARIABLE
 #include "builtin.h"
 #include "config.h"
 #include "color.h"
@@ -24,6 +24,7 @@
 #include "ref-filter.h"
 #include "worktree.h"
 #include "help.h"
+#include "advice.h"
 #include "commit-reach.h"
 
 static const char * const builtin_branch_usage[] = {
@@ -42,7 +43,6 @@ static const char *head;
 static struct object_id head_oid;
 static int recurse_submodules = 0;
 static int submodule_propagate_branches = 0;
-static int omit_empty = 0;
 
 static int branch_use_color = -1;
 static char branch_colors[][COLOR_MAXLEN] = {
@@ -148,8 +148,8 @@ static int branch_merged(int kind, const char *name,
 
 		if (upstream &&
 		    (reference_name = reference_name_to_free =
-		     resolve_refdup(upstream, RESOLVE_REF_READING,
-				    &oid, NULL)) != NULL)
+		     refs_resolve_refdup(get_main_ref_store(the_repository), upstream, RESOLVE_REF_READING,
+					 &oid, NULL)) != NULL)
 			reference_rev = lookup_commit_reference(the_repository,
 								&oid);
 	}
@@ -158,6 +158,8 @@ static int branch_merged(int kind, const char *name,
 
 	merged = reference_rev ? repo_in_merge_bases(the_repository, rev,
 						     reference_rev) : 0;
+	if (merged < 0)
+		exit(128);
 
 	/*
 	 * After the safety valve is fully redefined to "check with
@@ -166,9 +168,13 @@ static int branch_merged(int kind, const char *name,
 	 * any of the following code, but during the transition period,
 	 * a gentle reminder is in order.
 	 */
-	if ((head_rev != reference_rev) &&
-	    (head_rev ? repo_in_merge_bases(the_repository, rev, head_rev) : 0) != merged) {
-		if (merged)
+	if (head_rev != reference_rev) {
+		int expect = head_rev ? repo_in_merge_bases(the_repository, rev, head_rev) : 0;
+		if (expect < 0)
+			exit(128);
+		if (expect == merged)
+			; /* okay */
+		else if (merged)
 			warning(_("deleting branch '%s' that has been merged to\n"
 				"         '%s', but not yet merged to HEAD"),
 				name, reference_name);
@@ -191,9 +197,10 @@ static int check_branch_commit(const char *branchname, const char *refname,
 		return -1;
 	}
 	if (!force && !branch_merged(kinds, branchname, rev, head_rev)) {
-		error(_("the branch '%s' is not fully merged.\n"
-		      "If you are sure you want to delete it, "
-		      "run 'git branch -D %s'"), branchname, branchname);
+		error(_("the branch '%s' is not fully merged"), branchname);
+		advise_if_enabled(ADVICE_FORCE_DELETE_BRANCH,
+				  _("If you are sure you want to delete it, "
+				  "run 'git branch -D %s'"), branchname);
 		return -1;
 	}
 	return 0;
@@ -203,7 +210,7 @@ static void delete_branch_config(const char *branchname)
 {
 	struct strbuf buf = STRBUF_INIT;
 	strbuf_addf(&buf, "branch.%s", branchname);
-	if (git_config_rename_section(buf.buf, NULL) < 0)
+	if (repo_config_rename_section(the_repository, buf.buf, NULL) < 0)
 		warning(_("update of config-file failed"));
 	strbuf_release(&buf);
 }
@@ -265,21 +272,24 @@ static int delete_branches(int argc, const char **argv, int force, int kinds,
 			}
 		}
 
-		target = resolve_refdup(name,
-					RESOLVE_REF_READING
-					| RESOLVE_REF_NO_RECURSE
-					| RESOLVE_REF_ALLOW_BAD_NAME,
-					&oid, &flags);
+		target = refs_resolve_refdup(get_main_ref_store(the_repository),
+					     name,
+					     RESOLVE_REF_READING
+					     | RESOLVE_REF_NO_RECURSE
+					     | RESOLVE_REF_ALLOW_BAD_NAME,
+					     &oid, &flags);
 		if (!target) {
 			if (remote_branch) {
 				error(_("remote-tracking branch '%s' not found"), bname.buf);
 			} else {
 				char *virtual_name = mkpathdup(fmt_remotes, bname.buf);
-				char *virtual_target = resolve_refdup(virtual_name,
-							RESOLVE_REF_READING
-							| RESOLVE_REF_NO_RECURSE
-							| RESOLVE_REF_ALLOW_BAD_NAME,
-							&oid, &flags);
+				char *virtual_target = refs_resolve_refdup(get_main_ref_store(the_repository),
+									   virtual_name,
+									   RESOLVE_REF_READING
+									   | RESOLVE_REF_NO_RECURSE
+									   | RESOLVE_REF_ALLOW_BAD_NAME,
+									   &oid,
+									   &flags);
 				FREE_AND_NULL(virtual_name);
 
 				if (virtual_target)
@@ -310,13 +320,13 @@ static int delete_branches(int argc, const char **argv, int force, int kinds,
 		free(target);
 	}
 
-	if (delete_refs(NULL, &refs_to_delete, REF_NO_DEREF))
+	if (refs_delete_refs(get_main_ref_store(the_repository), NULL, &refs_to_delete, REF_NO_DEREF))
 		ret = 1;
 
 	for_each_string_list_item(item, &refs_to_delete) {
 		char *describe_ref = item->util;
 		char *name = item->string;
-		if (!ref_exists(name)) {
+		if (!refs_ref_exists(get_main_ref_store(the_repository), name)) {
 			char *refname = name + branch_name_pos;
 			if (!quiet)
 				printf(remote_branch
@@ -435,8 +445,6 @@ static void print_ref_list(struct ref_filter *filter, struct ref_sorting *sortin
 {
 	int i;
 	struct ref_array array;
-	struct strbuf out = STRBUF_INIT;
-	struct strbuf err = STRBUF_INIT;
 	int maxwidth = 0;
 	const char *remote_prefix = "";
 	char *to_free = NULL;
@@ -466,24 +474,27 @@ static void print_ref_list(struct ref_filter *filter, struct ref_sorting *sortin
 	filter_ahead_behind(the_repository, format, &array);
 	ref_array_sort(sorting, &array);
 
-	for (i = 0; i < array.nr; i++) {
-		strbuf_reset(&err);
-		strbuf_reset(&out);
-		if (format_ref_array_item(array.items[i], format, &out, &err))
-			die("%s", err.buf);
-		if (column_active(colopts)) {
-			assert(!filter->verbose && "--column and --verbose are incompatible");
-			 /* format to a string_list to let print_columns() do its job */
+	if (column_active(colopts)) {
+		struct strbuf out = STRBUF_INIT, err = STRBUF_INIT;
+
+		assert(!filter->verbose && "--column and --verbose are incompatible");
+
+		for (i = 0; i < array.nr; i++) {
+			strbuf_reset(&err);
+			strbuf_reset(&out);
+			if (format_ref_array_item(array.items[i], format, &out, &err))
+				die("%s", err.buf);
+
+			/* format to a string_list to let print_columns() do its job */
 			string_list_append(output, out.buf);
-		} else {
-			fwrite(out.buf, 1, out.len, stdout);
-			if (out.len || !omit_empty)
-				putchar('\n');
 		}
+
+		strbuf_release(&err);
+		strbuf_release(&out);
+	} else {
+		print_formatted_ref_array(&array, format);
 	}
 
-	strbuf_release(&err);
-	strbuf_release(&out);
 	ref_array_clear(&array);
 	free(to_free);
 }
@@ -491,7 +502,8 @@ static void print_ref_list(struct ref_filter *filter, struct ref_sorting *sortin
 static void print_current_branch_name(void)
 {
 	int flags;
-	const char *refname = resolve_ref_unsafe("HEAD", 0, NULL, &flags);
+	const char *refname = refs_resolve_ref_unsafe(get_main_ref_store(the_repository),
+						      "HEAD", 0, NULL, &flags);
 	const char *shortname;
 	if (!refname)
 		die(_("could not resolve HEAD"));
@@ -547,7 +559,7 @@ static int replace_each_worktree_head_symref(struct worktree **worktrees,
 			continue;
 
 		refs = get_worktree_ref_store(worktrees[i]);
-		if (refs_create_symref(refs, "HEAD", newref, logmsg))
+		if (refs_update_symref(refs, "HEAD", newref, logmsg))
 			ret = error(_("HEAD of working tree %s is not updated"),
 				    worktrees[i]->path);
 	}
@@ -572,10 +584,14 @@ static void copy_or_rename_branch(const char *oldname, const char *newname, int 
 		 * Bad name --- this could be an attempt to rename a
 		 * ref that we used to allow to be created by accident.
 		 */
-		if (ref_exists(oldref.buf))
+		if (refs_ref_exists(get_main_ref_store(the_repository), oldref.buf))
 			recovery = 1;
-		else
-			die(_("invalid branch name: '%s'"), oldname);
+		else {
+			int code = die_message(_("invalid branch name: '%s'"), oldname);
+			advise_if_enabled(ADVICE_REF_SYNTAX,
+					  _("See `man git check-ref-format`"));
+			exit(code);
+		}
 	}
 
 	for (int i = 0; worktrees[i]; i++) {
@@ -589,7 +605,7 @@ static void copy_or_rename_branch(const char *oldname, const char *newname, int 
 		}
 	}
 
-	if ((copy || !(oldref_usage & IS_HEAD)) && !ref_exists(oldref.buf)) {
+	if ((copy || !(oldref_usage & IS_HEAD)) && !refs_ref_exists(get_main_ref_store(the_repository), oldref.buf)) {
 		if (oldref_usage & IS_HEAD)
 			die(_("no commit on branch '%s' yet"), oldname);
 		else
@@ -620,9 +636,9 @@ static void copy_or_rename_branch(const char *oldname, const char *newname, int 
 			    oldref.buf, newref.buf);
 
 	if (!copy && !(oldref_usage & IS_ORPHAN) &&
-	    rename_ref(oldref.buf, newref.buf, logmsg.buf))
+	    refs_rename_ref(get_main_ref_store(the_repository), oldref.buf, newref.buf, logmsg.buf))
 		die(_("branch rename failed"));
-	if (copy && copy_existing_ref(oldref.buf, newref.buf, logmsg.buf))
+	if (copy && refs_copy_existing_ref(get_main_ref_store(the_repository), oldref.buf, newref.buf, logmsg.buf))
 		die(_("branch copy failed"));
 
 	if (recovery) {
@@ -643,9 +659,10 @@ static void copy_or_rename_branch(const char *oldname, const char *newname, int 
 
 	strbuf_addf(&oldsection, "branch.%s", interpreted_oldname);
 	strbuf_addf(&newsection, "branch.%s", interpreted_newname);
-	if (!copy && git_config_rename_section(oldsection.buf, newsection.buf) < 0)
+	if (!copy && repo_config_rename_section(the_repository, oldsection.buf, newsection.buf) < 0)
 		die(_("branch is renamed, but update of config-file failed"));
-	if (copy && strcmp(interpreted_oldname, interpreted_newname) && git_config_copy_section(oldsection.buf, newsection.buf) < 0)
+	if (copy && strcmp(interpreted_oldname, interpreted_newname) &&
+	    repo_config_copy_section(the_repository, oldsection.buf, newsection.buf) < 0)
 		die(_("branch is copied, but update of config-file failed"));
 	strbuf_release(&oldref);
 	strbuf_release(&newref);
@@ -665,18 +682,18 @@ static int edit_branch_description(const char *branch_name)
 	exists = !read_branch_desc(&buf, branch_name);
 	if (!buf.len || buf.buf[buf.len-1] != '\n')
 		strbuf_addch(&buf, '\n');
-	strbuf_commented_addf(&buf, comment_line_char,
+	strbuf_commented_addf(&buf, comment_line_str,
 		    _("Please edit the description for the branch\n"
 		      "  %s\n"
-		      "Lines starting with '%c' will be stripped.\n"),
-		    branch_name, comment_line_char);
+		      "Lines starting with '%s' will be stripped.\n"),
+		    branch_name, comment_line_str);
 	write_file_buf(edit_description(), buf.buf, buf.len);
 	strbuf_reset(&buf);
 	if (launch_editor(edit_description(), &buf, NULL)) {
 		strbuf_release(&buf);
 		return -1;
 	}
-	strbuf_stripspace(&buf, comment_line_char);
+	strbuf_stripspace(&buf, comment_line_str);
 
 	strbuf_addf(&name, "branch.%s.description", branch_name);
 	if (buf.len || exists)
@@ -687,7 +704,10 @@ static int edit_branch_description(const char *branch_name)
 	return 0;
 }
 
-int cmd_branch(int argc, const char **argv, const char *prefix)
+int cmd_branch(int argc,
+	       const char **argv,
+	       const char *prefix,
+	       struct repository *repo UNUSED)
 {
 	/* possible actions */
 	int delete = 0, rename = 0, copy = 0, list = 0,
@@ -734,7 +754,7 @@ int cmd_branch(int argc, const char **argv, const char *prefix)
 		OPT_BIT('D', NULL, &delete, N_("delete branch (even if not merged)"), 2),
 		OPT_BIT('m', "move", &rename, N_("move/rename a branch and its reflog"), 1),
 		OPT_BIT('M', NULL, &rename, N_("move/rename a branch, even if target exists"), 2),
-		OPT_BOOL(0, "omit-empty",  &omit_empty,
+		OPT_BOOL(0, "omit-empty",  &format.array_opts.omit_empty,
 			N_("do not output a newline after empty formatted refs")),
 		OPT_BIT('c', "copy", &copy, N_("copy a branch and its reflog"), 1),
 		OPT_BIT('C', NULL, &copy, N_("copy a branch, even if target exists"), 2),
@@ -764,11 +784,18 @@ int cmd_branch(int argc, const char **argv, const char *prefix)
 	if (argc == 2 && !strcmp(argv[1], "-h"))
 		usage_with_options(builtin_branch_usage, options);
 
+	/*
+	 * Try to set sort keys from config. If config does not set any,
+	 * fall back on default (refname) sorting.
+	 */
 	git_config(git_branch_config, &sorting_options);
+	if (!sorting_options.nr)
+		string_list_append(&sorting_options, "refname");
 
 	track = git_branch_track;
 
-	head = resolve_refdup("HEAD", 0, &head_oid, NULL);
+	head = refs_resolve_refdup(get_main_ref_store(the_repository), "HEAD",
+				   0, &head_oid, NULL);
 	if (!head)
 		die(_("failed to resolve HEAD as a valid ref"));
 	if (!strcmp(head, "HEAD"))
@@ -854,6 +881,7 @@ int cmd_branch(int argc, const char **argv, const char *prefix)
 		string_list_clear(&output, 0);
 		ref_sorting_release(sorting);
 		ref_filter_clear(&filter);
+		ref_format_clear(&format);
 		return 0;
 	} else if (edit_description) {
 		const char *branch_name;
@@ -873,7 +901,7 @@ int cmd_branch(int argc, const char **argv, const char *prefix)
 		}
 
 		strbuf_addf(&branch_ref, "refs/heads/%s", branch_name);
-		if (!ref_exists(branch_ref.buf))
+		if (!refs_ref_exists(get_main_ref_store(the_repository), branch_ref.buf))
 			error((!argc || branch_checked_out(branch_ref.buf))
 			      ? _("no commit on branch '%s' yet")
 			      : _("no branch named '%s'"),
@@ -918,7 +946,7 @@ int cmd_branch(int argc, const char **argv, const char *prefix)
 			die(_("no such branch '%s'"), argv[0]);
 		}
 
-		if (!ref_exists(branch->refname)) {
+		if (!refs_ref_exists(get_main_ref_store(the_repository), branch->refname)) {
 			if (!argc || branch_checked_out(branch->refname))
 				die(_("no commit on branch '%s' yet"), branch->name);
 			die(_("branch '%s' does not exist"), branch->name);

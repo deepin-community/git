@@ -1,3 +1,4 @@
+#define USE_THE_REPOSITORY_VARIABLE
 #include "builtin.h"
 #include "config.h"
 #include "commit.h"
@@ -219,6 +220,7 @@ static void show_commit(struct commit *commit, void *data)
 		ctx.fmt = revs->commit_format;
 		ctx.output_encoding = get_log_output_encoding();
 		ctx.color = revs->diffopt.use_color;
+		ctx.rev = revs;
 		pretty_print_commit(&ctx, commit, &buf);
 		if (buf.len) {
 			if (revs->commit_format != CMIT_FMT_ONELINE)
@@ -507,10 +509,15 @@ static int try_bitmap_disk_usage(struct rev_info *revs,
 
 	size_from_bitmap = get_disk_usage_from_bitmap(bitmap_git, revs);
 	print_disk_usage(size_from_bitmap);
+
+	free_bitmap_index(bitmap_git);
 	return 0;
 }
 
-int cmd_rev_list(int argc, const char **argv, const char *prefix)
+int cmd_rev_list(int argc,
+		 const char **argv,
+		 const char *prefix,
+		 struct repository *repo UNUSED)
 {
 	struct rev_info revs;
 	struct rev_list_info info;
@@ -544,6 +551,18 @@ int cmd_rev_list(int argc, const char **argv, const char *prefix)
 	 * objects.
 	 *
 	 * Let "--missing" to conditionally set fetch_if_missing.
+	 */
+	/*
+	 * NEEDSWORK: These loops that attempt to find presence of
+	 * options without understanding that the options they are
+	 * skipping are broken (e.g., it would not know "--grep
+	 * --exclude-promisor-objects" is not triggering
+	 * "--exclude-promisor-objects" option).  We really need
+	 * setup_revisions() to have a mechanism to allow and disallow
+	 * some sets of options for different commands (like rev-list,
+	 * replay, etc). Such a mechanism should do an early parsing
+	 * of options and be able to manage the `--missing=...` and
+	 * `--exclude-promisor-objects` options below.
 	 */
 	for (i = 1; i < argc; i++) {
 		const char *arg = argv[i];
@@ -753,8 +772,12 @@ int cmd_rev_list(int argc, const char **argv, const char *prefix)
 
 	if (arg_print_omitted)
 		oidset_init(&omitted_objects, DEFAULT_OIDSET_SIZE);
-	if (arg_missing_action == MA_PRINT)
+	if (arg_missing_action == MA_PRINT) {
 		oidset_init(&missing_objects, DEFAULT_OIDSET_SIZE);
+		/* Add missing tips */
+		oidset_insert_from_set(&missing_objects, &revs.missing_commits);
+		oidset_clear(&revs.missing_commits);
+	}
 
 	traverse_commit_list_filtered(
 		&revs, show_commit, show_object, &info,

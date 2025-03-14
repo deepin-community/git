@@ -3,11 +3,11 @@
  *
  * Copyright (c) 2006 Junio C Hamano
  */
+#define USE_THE_REPOSITORY_VARIABLE
 #include "builtin.h"
 #include "abspath.h"
 #include "gettext.h"
 #include "hex.h"
-#include "repository.h"
 #include "config.h"
 #include "tag.h"
 #include "tree-walk.h"
@@ -527,7 +527,7 @@ static int grep_submodule(struct grep_opt *opt,
 		strbuf_addstr(&base, filename);
 		strbuf_addch(&base, '/');
 
-		init_tree_desc(&tree, data, size);
+		init_tree_desc(&tree, oid, data, size);
 		hit = grep_tree(&subopt, pathspec, &tree, &base, base.len,
 				object_type == OBJ_COMMIT);
 		strbuf_release(&base);
@@ -571,7 +571,9 @@ static int grep_cache(struct grep_opt *opt,
 
 			data = repo_read_object_file(the_repository, &ce->oid,
 						     &type, &size);
-			init_tree_desc(&tree, data, size);
+			if (!data)
+				die(_("unable to read tree %s"), oid_to_hex(&ce->oid));
+			init_tree_desc(&tree, &ce->oid, data, size);
 
 			hit |= grep_tree(opt, pathspec, &tree, &name, 0, 0);
 			strbuf_setlen(&name, name_base_len);
@@ -667,7 +669,7 @@ static int grep_tree(struct grep_opt *opt, const struct pathspec *pathspec,
 				    oid_to_hex(&entry.oid));
 
 			strbuf_addch(base, '/');
-			init_tree_desc(&sub, data, size);
+			init_tree_desc(&sub, &entry.oid, data, size);
 			hit |= grep_tree(opt, pathspec, &sub, base, tn_len,
 					 check_attr);
 			free(data);
@@ -711,7 +713,7 @@ static int grep_object(struct grep_opt *opt, const struct pathspec *pathspec,
 			strbuf_add(&base, name, len);
 			strbuf_addch(&base, ':');
 		}
-		init_tree_desc(&tree, data, size);
+		init_tree_desc(&tree, &obj->oid, data, size);
 		hit = grep_tree(opt, pathspec, &tree, &base, base.len,
 				obj->type == OBJ_COMMIT);
 		strbuf_release(&base);
@@ -886,7 +888,10 @@ static int pattern_callback(const struct option *opt, const char *arg,
 	return 0;
 }
 
-int cmd_grep(int argc, const char **argv, const char *prefix)
+int cmd_grep(int argc,
+	     const char **argv,
+	     const char *prefix,
+	     struct repository *repo UNUSED)
 {
 	int hit = 0;
 	int cached = 0, untracked = 0, opt_exclude = -1;
@@ -1112,7 +1117,7 @@ int cmd_grep(int argc, const char **argv, const char *prefix)
 	for (i = 0; i < argc; i++) {
 		const char *arg = argv[i];
 		struct object_id oid;
-		struct object_context oc;
+		struct object_context oc = {0};
 		struct object *object;
 
 		if (!strcmp(arg, "--")) {
@@ -1131,6 +1136,7 @@ int cmd_grep(int argc, const char **argv, const char *prefix)
 					 &oid, &oc)) {
 			if (seen_dashdash)
 				die(_("unable to resolve revision: %s"), arg);
+			object_context_release(&oc);
 			break;
 		}
 
@@ -1138,7 +1144,7 @@ int cmd_grep(int argc, const char **argv, const char *prefix)
 		if (!seen_dashdash)
 			verify_non_filename(prefix, arg);
 		add_object_array_with_path(object, arg, &list, oc.mode, oc.path);
-		free(oc.path);
+		object_context_release(&oc);
 	}
 
 	/*
