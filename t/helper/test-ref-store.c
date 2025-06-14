@@ -24,14 +24,13 @@ struct flag_definition {
 static unsigned int parse_flags(const char *str, struct flag_definition *defs)
 {
 	struct string_list masks = STRING_LIST_INIT_DUP;
-	int i = 0;
 	unsigned int result = 0;
 
 	if (!strcmp(str, "0"))
 		return 0;
 
 	string_list_split(&masks, str, ',', 64);
-	for (; i < masks.nr; i++) {
+	for (size_t i = 0; i < masks.nr; i++) {
 		const char *name = masks.items[i].string;
 		struct flag_definition *def = defs;
 		int found = 0;
@@ -76,11 +75,10 @@ static const char **get_store(const char **argv, struct ref_store **refs)
 		*refs = get_main_ref_store(the_repository);
 	} else if (skip_prefix(argv[0], "submodule:", &gitdir)) {
 		struct strbuf sb = STRBUF_INIT;
-		int ret;
 
-		ret = strbuf_git_path_submodule(&sb, gitdir, "objects/");
-		if (ret)
-			die("strbuf_git_path_submodule failed: %d", ret);
+		if (!repo_submodule_path_append(the_repository,
+						&sb, gitdir, "objects/"))
+			die("computing submodule path failed");
 		add_to_alternates_memory(sb.buf);
 		strbuf_release(&sb);
 
@@ -199,7 +197,7 @@ static int cmd_verify_ref(struct ref_store *refs, const char **argv)
 	struct strbuf err = STRBUF_INIT;
 	int ret;
 
-	ret = refs_verify_refname_available(refs, refname, NULL, NULL, &err);
+	ret = refs_verify_refname_available(refs, refname, NULL, NULL, 0, &err);
 	if (err.len)
 		puts(err.buf);
 	return ret;

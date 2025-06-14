@@ -201,7 +201,7 @@ static int replace_object_oid(const char *object_ref,
 	}
 
 	transaction = ref_store_transaction_begin(get_main_ref_store(the_repository),
-						  &err);
+						  0, &err);
 	if (!transaction ||
 	    ref_transaction_update(transaction, ref.buf, repl, &prev,
 				   NULL, NULL, 0, NULL, &err) ||
@@ -345,7 +345,7 @@ static int edit_and_replace(const char *object_ref, int force, int raw)
 	}
 	strbuf_release(&ref);
 
-	tmpfile = git_pathdup("REPLACE_EDITOBJ");
+	tmpfile = repo_git_path(the_repository, "REPLACE_EDITOBJ");
 	if (export_object(&old_oid, type, raw, tmpfile)) {
 		free(tmpfile);
 		return -1;

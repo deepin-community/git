@@ -317,7 +317,7 @@ int cmd_send_pack(int argc,
 	set_ref_status_for_push(remote_refs, args.send_mirror,
 		args.force_update);
 
-	ret = send_pack(&args, fd, conn, remote_refs, &extra_have);
+	ret = send_pack(the_repository, &args, fd, conn, remote_refs, &extra_have);
 
 	if (helper_status)
 		print_helper_status(remote_refs);
@@ -340,6 +340,7 @@ int cmd_send_pack(int argc,
 		/* stable plumbing output; do not modify or localize */
 		fprintf(stderr, "Everything up-to-date\n");
 
+	string_list_clear(&push_options, 0);
 	free_refs(remote_refs);
 	free_refs(local_refs);
 	refspec_clear(&rs);

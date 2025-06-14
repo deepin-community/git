@@ -2,7 +2,6 @@
 
 test_description='git init'
 
-TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 
 check_config () {
@@ -434,6 +433,12 @@ test_expect_success SYMLINKS 're-init to move gitdir symlink' '
 sep_git_dir_worktree ()  {
 	test_when_finished "rm -rf mainwt linkwt seprepo" &&
 	git init mainwt &&
+	if test "relative" = $2
+	then
+		test_config -C mainwt worktree.useRelativePaths true
+	else
+		test_config -C mainwt worktree.useRelativePaths false
+	fi
 	test_commit -C mainwt gumby &&
 	git -C mainwt worktree add --detach ../linkwt &&
 	git -C "$1" init --separate-git-dir ../seprepo &&
@@ -442,12 +447,20 @@ sep_git_dir_worktree ()  {
 	test_cmp expect actual
 }
 
-test_expect_success 're-init to move gitdir with linked worktrees' '
-	sep_git_dir_worktree mainwt
+test_expect_success 're-init to move gitdir with linked worktrees (absolute)' '
+	sep_git_dir_worktree mainwt absolute
 '
 
-test_expect_success 're-init to move gitdir within linked worktree' '
-	sep_git_dir_worktree linkwt
+test_expect_success 're-init to move gitdir within linked worktree (absolute)' '
+	sep_git_dir_worktree linkwt absolute
+'
+
+test_expect_success 're-init to move gitdir with linked worktrees (relative)' '
+	sep_git_dir_worktree mainwt relative
+'
+
+test_expect_success 're-init to move gitdir within linked worktree (relative)' '
+	sep_git_dir_worktree linkwt relative
 '
 
 test_expect_success MINGW '.git hidden' '
@@ -573,6 +586,18 @@ test_expect_success 'GIT_DEFAULT_HASH overrides init.defaultObjectFormat' '
 	echo sha256 >expected
 '
 
+for hash in sha1 sha256
+do
+	test_expect_success "reinit repository with GIT_DEFAULT_HASH=$hash does not change format" '
+		test_when_finished "rm -rf repo" &&
+		git init repo &&
+		git -C repo rev-parse --show-object-format >expect &&
+		GIT_DEFAULT_HASH=$hash git init repo &&
+		git -C repo rev-parse --show-object-format >actual &&
+		test_cmp expect actual
+	'
+done
+
 test_expect_success 'extensions.objectFormat is not allowed with repo version 0' '
 	test_when_finished "rm -rf explicit-v0" &&
 	git init --object-format=sha256 explicit-v0 &&
@@ -681,6 +706,15 @@ do
 		test_when_finished "rm -rf refformat" &&
 		GIT_DEFAULT_REF_FORMAT=garbage git init --ref-format=$format refformat &&
 		echo $format >expect &&
+		git -C refformat rev-parse --show-ref-format >actual &&
+		test_cmp expect actual
+	'
+
+	test_expect_success "reinit repository with GIT_DEFAULT_REF_FORMAT=$format does not change format" '
+		test_when_finished "rm -rf refformat" &&
+		git init refformat &&
+		git -C refformat rev-parse --show-ref-format >expect &&
+		GIT_DEFAULT_REF_FORMAT=$format git init refformat &&
 		git -C refformat rev-parse --show-ref-format >actual &&
 		test_cmp expect actual
 	'
@@ -833,15 +867,6 @@ test_expect_success 'init with includeIf.onbranch condition' '
 test_expect_success 'init with includeIf.onbranch condition with existing directory' '
 	test_when_finished "rm -rf repo" &&
 	mkdir repo &&
-	git -c includeIf.onbranch:nonexistent.path=/does/not/exist init repo &&
-	echo $GIT_DEFAULT_REF_FORMAT >expect &&
-	git -C repo rev-parse --show-ref-format >actual &&
-	test_cmp expect actual
-'
-
-test_expect_success 're-init with includeIf.onbranch condition' '
-	test_when_finished "rm -rf repo" &&
-	git init repo &&
 	git -c includeIf.onbranch:nonexistent.path=/does/not/exist init repo &&
 	echo $GIT_DEFAULT_REF_FORMAT >expect &&
 	git -C repo rev-parse --show-ref-format >actual &&

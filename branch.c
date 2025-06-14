@@ -372,7 +372,7 @@ int read_branch_desc(struct strbuf *buf, const char *branch_name)
  */
 int validate_branchname(const char *name, struct strbuf *ref)
 {
-	if (strbuf_check_branch_ref(ref, name)) {
+	if (check_branch_ref(ref, name)) {
 		int code = die_message(_("'%s' is not a valid branch name"), name);
 		advise_if_enabled(ADVICE_REF_SYNTAX,
 				  _("See `man git check-ref-format`"));
@@ -397,7 +397,7 @@ static void prepare_checked_out_branches(void)
 	worktrees = get_worktrees();
 
 	while (worktrees[i]) {
-		char *old;
+		char *old, *wt_gitdir;
 		struct wt_status_state state = { 0 };
 		struct worktree *wt = worktrees[i++];
 		struct string_list update_refs = STRING_LIST_INIT_DUP;
@@ -437,7 +437,8 @@ static void prepare_checked_out_branches(void)
 		}
 		wt_status_state_free_buffers(&state);
 
-		if (!sequencer_get_update_refs_state(get_worktree_git_dir(wt),
+		wt_gitdir = get_worktree_git_dir(wt);
+		if (!sequencer_get_update_refs_state(wt_gitdir,
 						     &update_refs)) {
 			struct string_list_item *item;
 			for_each_string_list_item(item, &update_refs) {
@@ -448,6 +449,8 @@ static void prepare_checked_out_branches(void)
 			}
 			string_list_clear(&update_refs, 1);
 		}
+
+		free(wt_gitdir);
 	}
 
 	free_worktrees(worktrees);
@@ -627,7 +630,7 @@ void create_branch(struct repository *r,
 	else
 		msg = xstrfmt("branch: Created from %s", start_name);
 	transaction = ref_store_transaction_begin(get_main_ref_store(the_repository),
-						  &err);
+						  0, &err);
 	if (!transaction ||
 		ref_transaction_update(transaction, ref.buf,
 					&oid, forcing ? NULL : null_oid(),
@@ -738,6 +741,7 @@ static int submodule_create_branch(struct repository *r,
 
 	strbuf_release(&child_err);
 	strbuf_release(&out_buf);
+	free(out_prefix);
 	return ret;
 }
 
@@ -794,7 +798,7 @@ void create_branches_recursively(struct repository *r, const char *name,
 	create_branch(r, name, start_committish, force, 0, reflog, quiet,
 		      BRANCH_TRACK_NEVER, dry_run);
 	if (dry_run)
-		return;
+		goto out;
 	/*
 	 * NEEDSWORK If tracking was set up in the superproject but not the
 	 * submodule, users might expect "git branch --recurse-submodules" to
@@ -815,8 +819,11 @@ void create_branches_recursively(struct repository *r, const char *name,
 			die(_("submodule '%s': cannot create branch '%s'"),
 			    submodule_entry_list.entries[i].submodule->name,
 			    name);
-		repo_clear(submodule_entry_list.entries[i].repo);
 	}
+
+out:
+	submodule_entry_list_release(&submodule_entry_list);
+	free(branch_point);
 }
 
 void remove_merge_branch_state(struct repository *r)

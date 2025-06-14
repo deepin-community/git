@@ -2,7 +2,6 @@
 
 test_description='exercise basic bitmap functionality'
 
-TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 . "$TEST_DIRECTORY"/lib-bitmap.sh
 
@@ -26,6 +25,36 @@ list_packed_objects () {
 has_any () {
 	grep -Ff "$1" "$2"
 }
+
+# Since name-hash values are stored in the .bitmap files, add a test
+# that checks that the name-hash calculations are stable across versions.
+# Not exhaustive, but these hashing algorithms would be hard to change
+# without causing deviations here.
+test_expect_success 'name-hash value stability' '
+	cat >names <<-\EOF &&
+	first
+	second
+	third
+	a/one-long-enough-for-collisions
+	b/two-long-enough-for-collisions
+	many/parts/to/this/path/enough/to/collide/in/v2
+	enough/parts/to/this/path/enough/to/collide/in/v2
+	EOF
+
+	test-tool name-hash <names >out &&
+
+	cat >expect <<-\EOF &&
+	2582249472 1763573760 first
+	2289942528 1188134912 second
+	2300837888 1130758144 third
+	2544516325 3963087891 a/one-long-enough-for-collisions
+	2544516325 4013419539 b/two-long-enough-for-collisions
+	1420111091 1709547268 many/parts/to/this/path/enough/to/collide/in/v2
+	1420111091 1709547268 enough/parts/to/this/path/enough/to/collide/in/v2
+	EOF
+
+	test_cmp expect out
+'
 
 test_bitmap_cases () {
 	writeLookupTable=false
@@ -420,7 +449,10 @@ test_bitmap_cases () {
 			cat >expect <<-\EOF &&
 			error: missing value for '\''pack.preferbitmaptips'\''
 			EOF
-			git repack -adb 2>actual &&
+
+			# Disable name hash version adjustment due to stderr comparison.
+			GIT_TEST_NAME_HASH_VERSION=1 \
+				git repack -adb 2>actual &&
 			test_cmp expect actual
 		)
 	'
@@ -501,6 +533,18 @@ test_expect_success 'boundary-based traversal is used when requested' '
 		grep "\"region_enter\".*\"label\":\"haves/classic\"" perf ||
 			return 1
 	done
+'
+
+test_expect_success 'left-right not confused by bitmap index' '
+	git rev-list --left-right other...HEAD >expect &&
+	git rev-list --use-bitmap-index --left-right other...HEAD >actual &&
+	test_cmp expect actual
+'
+
+test_expect_success 'left-right count not confused by bitmap-index' '
+	git rev-list --left-right --count other...HEAD >expect &&
+	git rev-list --use-bitmap-index --left-right --count other...HEAD >actual &&
+	test_cmp expect actual
 '
 
 test_bitmap_cases "pack.writeBitmapLookupTable"

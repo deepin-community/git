@@ -4,7 +4,10 @@
  * Copyright (c) 2007 Kristian Høgsberg <krh@redhat.com>
  * Based on git-commit.sh by Junio C Hamano and Linus Torvalds
  */
+
 #define USE_THE_REPOSITORY_VARIABLE
+#define DISABLE_SIGN_COMPARE_WARNINGS
+
 #include "builtin.h"
 #include "advice.h"
 #include "config.h"
@@ -41,7 +44,7 @@
 #include "trailer.h"
 
 static const char * const builtin_commit_usage[] = {
-	N_("git commit [-a | --interactive | --patch] [-s] [-v] [-u<mode>] [--amend]\n"
+	N_("git commit [-a | --interactive | --patch] [-s] [-v] [-u[<mode>]] [--amend]\n"
 	   "           [--dry-run] [(-c | -C | --squash) <commit> | --fixup [(amend|reword):]<commit>]\n"
 	   "           [-F <file> | -m <msg>] [--reset-author] [--allow-empty]\n"
 	   "           [--allow-empty-message] [--no-verify] [-e] [--author=<author>]\n"
@@ -135,7 +138,7 @@ static struct strvec trailer_args = STRVEC_INIT;
  * is specified explicitly.
  */
 static enum commit_msg_cleanup_mode cleanup_mode;
-static char *cleanup_arg;
+static char *cleanup_config;
 
 static enum commit_whence whence;
 static int use_editor = 1, include_status = 1;
@@ -349,6 +352,7 @@ static const char *prepare_index(const char **argv, const char *prefix,
 	struct pathspec pathspec;
 	int refresh_flags = REFRESH_QUIET;
 	const char *ret;
+	char *path = NULL;
 
 	if (is_status)
 		refresh_flags |= REFRESH_UNMERGED;
@@ -521,9 +525,9 @@ static const char *prepare_index(const char **argv, const char *prefix,
 	if (write_locked_index(the_repository->index, &index_lock, 0))
 		die(_("unable to write new index file"));
 
-	hold_lock_file_for_update(&false_lock,
-				  git_path("next-index-%"PRIuMAX,
-					   (uintmax_t) getpid()),
+	path = repo_git_path(the_repository, "next-index-%"PRIuMAX,
+			     (uintmax_t) getpid());
+	hold_lock_file_for_update(&false_lock, path,
 				  LOCK_DIE_ON_ERROR);
 
 	create_base_index(current_head);
@@ -539,6 +543,7 @@ static const char *prepare_index(const char **argv, const char *prefix,
 out:
 	string_list_clear(&partial, 0);
 	clear_pathspec(&pathspec);
+	free(path);
 	return ret;
 }
 
@@ -726,6 +731,13 @@ static void prepare_amend_commit(struct commit *commit, struct strbuf *sb,
 	fmt = starts_with(subject, "amend!") ? "%b" : "%B";
 	repo_format_commit_message(the_repository, commit, fmt, sb, ctx);
 	repo_unuse_commit_buffer(the_repository, commit, buffer);
+}
+
+static void change_data_free(void *util, const char *str UNUSED)
+{
+	struct wt_status_change_data *d = util;
+	free(d->rename_source);
+	free(d);
 }
 
 static int prepare_to_commit(const char *index_file, const char *prefix,
@@ -991,7 +1003,7 @@ static int prepare_to_commit(const char *index_file, const char *prefix,
 		s->use_color = 0;
 		committable = run_status(s->fp, index_file, prefix, 1, s);
 		s->use_color = saved_color_setting;
-		string_list_clear(&s->change, 1);
+		string_list_clear_func(&s->change, change_data_free);
 	} else {
 		struct object_id oid;
 		const char *parent = "HEAD";
@@ -1380,8 +1392,6 @@ static int parse_and_validate_options(int argc, const char *argv[],
 	if (0 <= edit_flag)
 		use_editor = edit_flag;
 
-	cleanup_mode = get_cleanup_mode(cleanup_arg, use_editor);
-
 	handle_untracked_files_arg(s);
 
 	if (all && argc > 0)
@@ -1551,8 +1561,8 @@ struct repository *repo UNUSED)
 		OPT_END(),
 	};
 
-	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage_with_options(builtin_status_usage, builtin_status_options);
+	show_usage_with_options_if_asked(argc, argv,
+					 builtin_status_usage, builtin_status_options);
 
 	prepare_repo_settings(the_repository);
 	the_repository->settings.command_requires_full_index = 0;
@@ -1629,8 +1639,10 @@ static int git_commit_config(const char *k, const char *v,
 		include_status = git_config_bool(k, v);
 		return 0;
 	}
-	if (!strcmp(k, "commit.cleanup"))
-		return git_config_string(&cleanup_arg, k, v);
+	if (!strcmp(k, "commit.cleanup")) {
+		FREE_AND_NULL(cleanup_config);
+		return git_config_string(&cleanup_config, k, v);
+	}
 	if (!strcmp(k, "commit.gpgsign")) {
 		sign_commit = git_config_bool(k, v) ? "" : NULL;
 		return 0;
@@ -1651,6 +1663,7 @@ int cmd_commit(int argc,
 	       struct repository *repo UNUSED)
 {
 	static struct wt_status s;
+	static const char *cleanup_arg = NULL;
 	static struct option builtin_commit_options[] = {
 		OPT__QUIET(&quiet, N_("suppress summary after successful commit")),
 		OPT__VERBOSE(&verbose, N_("show diff in commit message template")),
@@ -1725,8 +1738,8 @@ int cmd_commit(int argc,
 	struct strbuf err = STRBUF_INIT;
 	int ret = 0;
 
-	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage_with_options(builtin_commit_usage, builtin_commit_options);
+	show_usage_with_options_if_asked(argc, argv,
+					 builtin_commit_usage, builtin_commit_options);
 
 	prepare_repo_settings(the_repository);
 	the_repository->settings.command_requires_full_index = 0;
@@ -1749,6 +1762,12 @@ int cmd_commit(int argc,
 					  prefix, current_head, &s);
 	if (verbose == -1)
 		verbose = (config_commit_verbose < 0) ? 0 : config_commit_verbose;
+
+	if (cleanup_arg) {
+		free(cleanup_config);
+		cleanup_config = xstrdup(cleanup_arg);
+	}
+	cleanup_mode = get_cleanup_mode(cleanup_config, use_editor);
 
 	if (dry_run)
 		return dry_run_commit(argv, prefix, current_head, &s);

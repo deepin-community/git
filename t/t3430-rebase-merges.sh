@@ -21,7 +21,6 @@ Initial setup:
 GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
 export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 
-TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 . "$TEST_DIRECTORY"/lib-rebase.sh
 . "$TEST_DIRECTORY"/lib-log-graph.sh
@@ -108,19 +107,19 @@ test_expect_success 'generate correct todo list' '
 
 	reset onto
 	pick $b B
-	label E
+	label first
 
 	reset onto
 	pick $c C
 	label branch-point
 	pick $f F
 	pick $g G
-	label H
+	label second
 
 	reset branch-point # C
 	pick $d D
-	merge -C $e E # E
-	merge -C $h H # H
+	merge -C $e first # E
+	merge -C $h second # H
 
 	EOF
 
@@ -462,11 +461,11 @@ test_expect_success 'A root commit can be a cousin, treat it that way' '
 '
 
 test_expect_success 'labels that are object IDs are rewritten' '
-	git checkout -b third B &&
+	git checkout --detach B &&
 	test_commit I &&
 	third=$(git rev-parse HEAD) &&
 	git checkout -b labels main &&
-	git merge --no-commit third &&
+	git merge --no-commit $third &&
 	test_tick &&
 	git commit -m "Merge commit '\''$third'\'' into labels" &&
 	echo noop >script-from-scratch &&
@@ -609,6 +608,26 @@ test_expect_success 'truncate label names' '
 	grep "label 0123456789-我$" out &&
 	git -c rebase.maxLabelLength=13 rebase --rebase-merges -x "cp \"$done\" out" --root &&
 	grep "label 0123456789-$" out
+'
+
+test_expect_success 'reword fast-forwarded empty merge commit' '
+	oid="$(git commit-tree -m "D1" -p A D^{tree})" &&
+	oid="$(git commit-tree -m "empty merge" -p D -p $oid D^{tree})" &&
+
+	write_script sequence-editor.sh <<-\EOF &&
+	sed /^merge/s/-C/-c/ "$1" >"$1.tmp"
+	mv "$1.tmp" "$1"
+	EOF
+
+	(
+		test_set_sequence_editor "$(pwd)/sequence-editor.sh" &&
+		GIT_EDITOR="echo edited >>" git rebase -i -r D $oid
+	) &&
+	test_commit_message HEAD <<-\EOF
+	empty merge
+
+	edited
+	EOF
 '
 
 test_done

@@ -10,7 +10,6 @@ This test runs various sanity checks on http-push.'
 GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
 export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 
-TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 
 if git http-push > /dev/null 2>&1 || [ $? -eq 128 ]
@@ -196,6 +195,16 @@ test_expect_failure 'push to password-protected repository (no user in URL)' '
 	set_askpass user@host pass@host &&
 	git push "$HTTPD_URL/auth/dumb/test_repo.git" HEAD &&
 	expect_askpass both user@host &&
+	git rev-parse --verify HEAD >expect &&
+	git --git-dir="$HTTPD_DOCUMENT_ROOT_PATH/auth/dumb/test_repo.git" \
+		rev-parse --verify HEAD >actual &&
+	test_cmp expect actual
+'
+
+test_expect_success 'push to password-protected repository (netrc)' '
+	test_commit pw-netrc &&
+	echo "default login user@host password pass@host" >"$HOME/.netrc" &&
+	GIT_TRACE=1 GIT_CURL_VERBOSE=1 git push "$HTTPD_URL/auth/dumb/test_repo.git" HEAD &&
 	git rev-parse --verify HEAD >expect &&
 	git --git-dir="$HTTPD_DOCUMENT_ROOT_PATH/auth/dumb/test_repo.git" \
 		rev-parse --verify HEAD >actual &&

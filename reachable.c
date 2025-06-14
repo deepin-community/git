@@ -65,8 +65,10 @@ static void add_rebase_files(struct rev_info *revs)
 	struct worktree **worktrees = get_worktrees();
 
 	for (struct worktree **wt = worktrees; *wt; wt++) {
+		char *wt_gitdir = get_worktree_git_dir(*wt);
+
 		strbuf_reset(&buf);
-		strbuf_addstr(&buf, get_worktree_git_dir(*wt));
+		strbuf_addstr(&buf, wt_gitdir);
 		strbuf_complete(&buf, '/');
 		len = buf.len;
 		for (size_t i = 0; i < ARRAY_SIZE(path); i++) {
@@ -74,6 +76,8 @@ static void add_rebase_files(struct rev_info *revs)
 			strbuf_addstr(&buf, path[i]);
 			add_one_file(buf.buf, revs);
 		}
+
+		free(wt_gitdir);
 	}
 	strbuf_release(&buf);
 	free_worktrees(worktrees);
@@ -239,7 +243,7 @@ static int want_recent_object(struct recent_data *data,
 			      const struct object_id *oid)
 {
 	if (data->ignore_in_core_kept_packs &&
-	    has_object_kept_pack(oid, IN_CORE_KEEP_PACKS))
+	    has_object_kept_pack(data->revs->repo, oid, IN_CORE_KEEP_PACKS))
 		return 0;
 	return 1;
 }
@@ -324,7 +328,7 @@ int add_unseen_recent_objects_to_traversal(struct rev_info *revs,
 	if (ignore_in_core_kept_packs)
 		flags |= FOR_EACH_OBJECT_SKIP_IN_CORE_KEPT_PACKS;
 
-	r = for_each_packed_object(add_recent_packed, &data, flags);
+	r = for_each_packed_object(revs->repo, add_recent_packed, &data, flags);
 
 done:
 	oidset_clear(&data.extra_recent_oids);

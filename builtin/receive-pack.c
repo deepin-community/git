@@ -1,4 +1,6 @@
 #define USE_THE_REPOSITORY_VARIABLE
+#define DISABLE_SIGN_COMPARE_WARNINGS
+
 #include "builtin.h"
 #include "abspath.h"
 
@@ -172,7 +174,7 @@ static int receive_pack_config(const char *var, const char *value,
 		char *path;
 
 		if (git_config_pathname(&path, var, value))
-			return 1;
+			return -1;
 		strbuf_addf(&fsck_msg_types, "%cskiplist=%s",
 			fsck_msg_types.len ? ',' : '=', path);
 		free(path);
@@ -374,6 +376,7 @@ static void write_head_info(void)
 struct command {
 	struct command *next;
 	const char *error_string;
+	char *error_string_owned;
 	struct ref_push_report *report;
 	unsigned int skip_update:1,
 		     did_not_exist:1,
@@ -563,14 +566,14 @@ static void hmac_hash(unsigned char *out,
 	unsigned char k_ipad[GIT_MAX_BLKSZ];
 	unsigned char k_opad[GIT_MAX_BLKSZ];
 	int i;
-	git_hash_ctx ctx;
+	struct git_hash_ctx ctx;
 
 	/* RFC 2104 2. (1) */
 	memset(key, '\0', GIT_MAX_BLKSZ);
 	if (the_hash_algo->blksz < key_len) {
 		the_hash_algo->init_fn(&ctx);
-		the_hash_algo->update_fn(&ctx, key_in, key_len);
-		the_hash_algo->final_fn(key, &ctx);
+		git_hash_update(&ctx, key_in, key_len);
+		git_hash_final(key, &ctx);
 	} else {
 		memcpy(key, key_in, key_len);
 	}
@@ -583,15 +586,15 @@ static void hmac_hash(unsigned char *out,
 
 	/* RFC 2104 2. (3) & (4) */
 	the_hash_algo->init_fn(&ctx);
-	the_hash_algo->update_fn(&ctx, k_ipad, sizeof(k_ipad));
-	the_hash_algo->update_fn(&ctx, text, text_len);
-	the_hash_algo->final_fn(out, &ctx);
+	git_hash_update(&ctx, k_ipad, sizeof(k_ipad));
+	git_hash_update(&ctx, text, text_len);
+	git_hash_final(out, &ctx);
 
 	/* RFC 2104 2. (6) & (7) */
 	the_hash_algo->init_fn(&ctx);
-	the_hash_algo->update_fn(&ctx, k_opad, sizeof(k_opad));
-	the_hash_algo->update_fn(&ctx, out, the_hash_algo->rawsz);
-	the_hash_algo->final_fn(out, &ctx);
+	git_hash_update(&ctx, k_opad, sizeof(k_opad));
+	git_hash_update(&ctx, out, the_hash_algo->rawsz);
+	git_hash_final(out, &ctx);
 }
 
 static char *prepare_push_cert_nonce(const char *path, timestamp_t stamp)
@@ -1083,7 +1086,7 @@ static int read_proc_receive_report(struct packet_reader *reader,
 		hint->run_proc_receive |= RUN_PROC_RECEIVE_RETURNED;
 		if (!strcmp(head, "ng")) {
 			if (p)
-				hint->error_string = xstrdup(p);
+				hint->error_string = hint->error_string_owned = xstrdup(p);
 			else
 				hint->error_string = "failed";
 			code = -1;
@@ -1432,7 +1435,8 @@ static const char *push_to_checkout(unsigned char *hash,
 
 static const char *update_worktree(unsigned char *sha1, const struct worktree *worktree)
 {
-	const char *retval, *git_dir;
+	const char *retval;
+	char *git_dir;
 	struct strvec env = STRVEC_INIT;
 	int invoked_hook;
 
@@ -1450,6 +1454,7 @@ static const char *update_worktree(unsigned char *sha1, const struct worktree *w
 		retval = push_to_deploy(sha1, &env, worktree->path);
 
 	strvec_clear(&env);
+	free(git_dir);
 	return retval;
 }
 
@@ -1848,7 +1853,7 @@ static void execute_commands_non_atomic(struct command *commands,
 			continue;
 
 		transaction = ref_store_transaction_begin(get_main_ref_store(the_repository),
-							  &err);
+							  0, &err);
 		if (!transaction) {
 			rp_error("%s", err.buf);
 			strbuf_reset(&err);
@@ -1877,7 +1882,7 @@ static void execute_commands_atomic(struct command *commands,
 	const char *reported_error = "atomic push failure";
 
 	transaction = ref_store_transaction_begin(get_main_ref_store(the_repository),
-						  &err);
+						  0, &err);
 	if (!transaction) {
 		rp_error("%s", err.buf);
 		strbuf_reset(&err);
@@ -2054,6 +2059,8 @@ static void free_commands(struct command *commands)
 	while (commands) {
 		struct command *next = commands->next;
 
+		ref_push_report_free(commands->report);
+		free(commands->error_string_owned);
 		free(commands);
 		commands = next;
 	}
@@ -2234,7 +2241,7 @@ static const char *unpack(int err_fd, struct shallow_info *si)
 		strvec_push(&child.args, alt_shallow_file);
 	}
 
-	tmp_objdir = tmp_objdir_create("incoming");
+	tmp_objdir = tmp_objdir_create(the_repository, "incoming");
 	if (!tmp_objdir) {
 		if (err_fd > 0)
 			close(err_fd);
@@ -2299,7 +2306,7 @@ static const char *unpack(int err_fd, struct shallow_info *si)
 		if (status)
 			return "index-pack fork failed";
 
-		lockfile = index_pack_lockfile(child.out, NULL);
+		lockfile = index_pack_lockfile(the_repository, child.out, NULL);
 		if (lockfile) {
 			pack_lockfile = register_tempfile(lockfile);
 			free(lockfile);
@@ -2623,7 +2630,7 @@ int cmd_receive_pack(int argc,
 			}
 		}
 		if (auto_update_server_info)
-			update_server_info(0);
+			update_server_info(the_repository, 0);
 		clear_shallow_info(&si);
 	}
 	if (use_sideband)

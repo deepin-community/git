@@ -2,7 +2,6 @@
 
 test_description='help'
 
-TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 
 configure_help () {
@@ -256,8 +255,9 @@ do
 		(
 			GIT_CEILING_DIRECTORIES=$(pwd) &&
 			export GIT_CEILING_DIRECTORIES &&
-			test_expect_code 129 git -C sub $builtin -h >output 2>&1
+			test_expect_code 129 git -C sub $builtin -h >output 2>err
 		) &&
+		test_must_be_empty err &&
 		test_grep usage output
 	'
 done <builtins

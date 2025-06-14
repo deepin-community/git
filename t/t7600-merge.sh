@@ -29,7 +29,6 @@ Testing basic merge operations/option parsing.
 GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
 export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 
-TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 . "$TEST_DIRECTORY"/lib-gpg.sh
 
@@ -174,7 +173,7 @@ test_expect_success 'merge -h with invalid index' '
 		cd broken &&
 		git init &&
 		>.git/index &&
-		test_expect_code 129 git merge -h 2>usage
+		test_expect_code 129 git merge -h >usage
 	) &&
 	test_grep "[Uu]sage: git merge" broken/usage
 '
