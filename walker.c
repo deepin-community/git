@@ -157,7 +157,7 @@ static int process(struct walker *walker, struct object *obj)
 	else {
 		if (obj->flags & COMPLETE)
 			return 0;
-		walker->prefetch(walker, obj->oid.hash);
+		walker->prefetch(walker, &obj->oid);
 	}
 
 	object_list_insert(obj, process_queue_end);
@@ -172,7 +172,8 @@ static int loop(struct walker *walker)
 	uint64_t nr = 0;
 
 	if (walker->get_progress)
-		progress = start_delayed_progress(_("Fetching objects"), 0);
+		progress = start_delayed_progress(the_repository,
+						  _("Fetching objects"), 0);
 
 	while (process_queue) {
 		struct object *obj = process_queue->item;
@@ -186,7 +187,7 @@ static int loop(struct walker *walker)
 		 * the queue because we needed to fetch it first.
 		 */
 		if (! (obj->flags & TO_SCAN)) {
-			if (walker->fetch(walker, obj->oid.hash)) {
+			if (walker->fetch(walker, &obj->oid)) {
 				stop_progress(&progress);
 				report_missing(obj);
 				return -1;
@@ -290,7 +291,7 @@ int walker_fetch(struct walker *walker, int targets, char **target,
 
 	if (write_ref) {
 		transaction = ref_store_transaction_begin(get_main_ref_store(the_repository),
-							  &err);
+							  0, &err);
 		if (!transaction) {
 			error("%s", err.buf);
 			goto done;

@@ -12,7 +12,6 @@ that are currently checked out.
 GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
 export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 
-TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 
 
@@ -427,14 +426,14 @@ test_expect_success 'option-like arguments passed to foreach commands are not lo
 		git submodule foreach "echo be --quiet" > ../expected &&
 		git submodule foreach echo be --quiet > ../actual
 	) &&
-	grep -sq -e "--quiet" expected &&
+	test_grep -e "--quiet" expected &&
 	test_cmp expected actual
 '
 
 test_expect_success 'option-like arguments passed to foreach recurse correctly' '
 	git -C clone2 submodule foreach --recursive "echo be --an-option" >expect &&
 	git -C clone2 submodule foreach --recursive echo be --an-option >actual &&
-	grep -e "--an-option" expect &&
+	test_grep -e "--an-option" expect &&
 	test_cmp expect actual
 '
 

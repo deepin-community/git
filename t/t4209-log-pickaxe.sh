@@ -2,7 +2,6 @@
 
 test_description='log --grep/--author/--regexp-ignore-case/-S/-G'
 
-TEST_PASSES_SANITIZE_LEAK=true
 . ./test-lib.sh
 
 test_log () {
@@ -91,6 +90,22 @@ test_expect_success 'usage: --no-pickaxe-regex' '
 	test_cmp expect actual &&
 
 	test_expect_code 128 git log -Gstring --no-pickaxe-regex 2>err &&
+	test_cmp expect actual
+'
+
+test_expect_success 'usage: -G and -S with empty argument' '
+	cat >expect <<-\EOF &&
+	error: -S requires a non-empty argument
+	EOF
+
+	test_expect_code 129 git log -S "" 2>actual &&
+	test_cmp expect actual &&
+
+	cat >expect <<-\EOF &&
+	error: -G requires a non-empty argument
+	EOF
+
+	test_expect_code 129 git log -G "" 2>actual &&
 	test_cmp expect actual
 '
 

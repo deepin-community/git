@@ -9,7 +9,10 @@
  *
  * Copyright (c) 2006 Shawn O. Pearce
  */
+
 #define USE_THE_REPOSITORY_VARIABLE
+#define DISABLE_SIGN_COMPARE_WARNINGS
+
 #include "builtin.h"
 #include "abspath.h"
 #include "date.h"
@@ -96,9 +99,11 @@ static void process_log_file(void)
 		/* There was some error recorded in the lock file */
 		commit_lock_file(&log_lock);
 	} else {
+		char *path = repo_git_path(the_repository, "gc.log");
 		/* No error, clean up any old gc.log */
-		unlink(git_path("gc.log"));
+		unlink(path);
 		rollback_lock_file(&log_lock);
+		free(path);
 	}
 }
 
@@ -136,8 +141,14 @@ struct gc_config {
 	char *prune_worktrees_expire;
 	char *repack_filter;
 	char *repack_filter_to;
+	char *repack_expire_to;
 	unsigned long big_pack_threshold;
 	unsigned long max_delta_cache_size;
+	/*
+	 * Remove this member from gc_config once repo_settings is passed
+	 * through the callchain.
+	 */
+	size_t delta_base_cache_limit;
 };
 
 #define GC_CONFIG_INIT { \
@@ -153,6 +164,7 @@ struct gc_config {
 	.prune_expire = xstrdup("2.weeks.ago"), \
 	.prune_worktrees_expire = xstrdup("3.months.ago"), \
 	.max_delta_cache_size = DEFAULT_DELTA_CACHE_SIZE, \
+	.delta_base_cache_limit = DEFAULT_DELTA_BASE_CACHE_LIMIT, \
 }
 
 static void gc_config_release(struct gc_config *cfg)
@@ -168,6 +180,7 @@ static void gc_config(struct gc_config *cfg)
 {
 	const char *value;
 	char *owned = NULL;
+	unsigned long ulongval;
 
 	if (!git_config_get_value("gc.packrefs", &value)) {
 		if (value && !strcmp(value, "notbare"))
@@ -205,6 +218,9 @@ static void gc_config(struct gc_config *cfg)
 
 	git_config_get_ulong("gc.bigpackthreshold", &cfg->big_pack_threshold);
 	git_config_get_ulong("pack.deltacachesize", &cfg->max_delta_cache_size);
+
+	if (!git_config_get_ulong("core.deltabasecachelimit", &ulongval))
+		cfg->delta_base_cache_limit = ulongval;
 
 	if (!git_config_get_string("gc.repackfilter", &owned)) {
 		free(cfg->repack_filter);
@@ -286,8 +302,11 @@ static int too_many_loose_objects(struct gc_config *cfg)
 	int num_loose = 0;
 	int needed = 0;
 	const unsigned hexsz_loose = the_hash_algo->hexsz - 2;
+	char *path;
 
-	dir = opendir(git_path("objects/17"));
+	path = repo_git_path(the_repository, "objects/17");
+	dir = opendir(path);
+	free(path);
 	if (!dir)
 		return 0;
 
@@ -416,7 +435,7 @@ static uint64_t estimate_repack_memory(struct gc_config *cfg,
 	 * read_sha1_file() (either at delta calculation phase, or
 	 * writing phase) also fills up the delta base cache
 	 */
-	heap += delta_base_cache_limit;
+	heap += cfg->delta_base_cache_limit;
 	/* and of course pack-objects has its own delta cache */
 	heap += cfg->max_delta_cache_size;
 
@@ -432,7 +451,8 @@ static int keep_one_pack(struct string_list_item *item, void *data UNUSED)
 static void add_repack_all_option(struct gc_config *cfg,
 				  struct string_list *keep_pack)
 {
-	if (cfg->prune_expire && !strcmp(cfg->prune_expire, "now"))
+	if (cfg->prune_expire && !strcmp(cfg->prune_expire, "now")
+		&& !(cfg->cruft_packs && cfg->repack_expire_to))
 		strvec_push(&repack, "-a");
 	else if (cfg->cruft_packs) {
 		strvec_push(&repack, "--cruft");
@@ -441,6 +461,8 @@ static void add_repack_all_option(struct gc_config *cfg,
 		if (cfg->max_cruft_size)
 			strvec_pushf(&repack, "--max-cruft-size=%lu",
 				     cfg->max_cruft_size);
+		if (cfg->repack_expire_to)
+			strvec_pushf(&repack, "--expire-to=%s", cfg->repack_expire_to);
 	} else {
 		strvec_push(&repack, "-A");
 		if (cfg->prune_expire)
@@ -533,7 +555,7 @@ static const char *lock_repo_for_gc(int force, pid_t* ret_pid)
 	if (xgethostname(my_host, sizeof(my_host)))
 		xsnprintf(my_host, sizeof(my_host), "unknown");
 
-	pidfile_path = git_pathdup("gc.pid");
+	pidfile_path = repo_git_path(the_repository, "gc.pid");
 	fd = hold_lock_file_for_update(&lock, pidfile_path,
 				       LOCK_DIE_ON_ERROR);
 	if (!force) {
@@ -594,7 +616,7 @@ static int report_last_gc_error(void)
 	int ret = 0;
 	ssize_t len;
 	struct stat st;
-	char *gc_log_path = git_pathdup("gc.log");
+	char *gc_log_path = repo_git_path(the_repository, "gc.log");
 
 	if (stat(gc_log_path, &st)) {
 		if (errno == ENOENT)
@@ -675,7 +697,6 @@ struct repository *repo UNUSED)
 	const char *prune_expire_sentinel = "sentinel";
 	const char *prune_expire_arg = prune_expire_sentinel;
 	int ret;
-
 	struct option builtin_gc_options[] = {
 		OPT__QUIET(&quiet, N_("suppress progress reporting")),
 		{ OPTION_STRING, 0, "prune", &prune_expire_arg, N_("date"),
@@ -694,11 +715,13 @@ struct repository *repo UNUSED)
 			   PARSE_OPT_NOCOMPLETE),
 		OPT_BOOL(0, "keep-largest-pack", &keep_largest_pack,
 			 N_("repack all other packs except the largest pack")),
+		OPT_STRING(0, "expire-to", &cfg.repack_expire_to, N_("dir"),
+			   N_("pack prefix to store a pack containing pruned objects")),
 		OPT_END()
 	};
 
-	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage_with_options(builtin_gc_usage, builtin_gc_options);
+	show_usage_with_options_if_asked(argc, argv,
+					 builtin_gc_usage, builtin_gc_options);
 
 	strvec_pushl(&reflog, "reflog", "expire", "--all", NULL);
 	strvec_pushl(&repack, "repack", "-d", "-l", NULL);
@@ -808,11 +831,12 @@ struct repository *repo UNUSED)
 	}
 
 	if (daemonized) {
-		hold_lock_file_for_update(&log_lock,
-					  git_path("gc.log"),
+		char *path = repo_git_path(the_repository, "gc.log");
+		hold_lock_file_for_update(&log_lock, path,
 					  LOCK_DIE_ON_ERROR);
 		dup2(get_lock_file_fd(&log_lock), 2);
 		atexit(process_log_file_at_exit);
+		free(path);
 	}
 
 	gc_before_repack(&opts, &cfg);
@@ -874,8 +898,11 @@ struct repository *repo UNUSED)
 		warning(_("There are too many unreachable loose objects; "
 			"run 'git prune' to remove them."));
 
-	if (!daemonized)
-		unlink(git_path("gc.log"));
+	if (!daemonized) {
+		char *path = repo_git_path(the_repository, "gc.log");
+		unlink(path);
+		free(path);
+	}
 
 out:
 	gc_config_release(&cfg);
@@ -1561,7 +1588,8 @@ static int task_option_parse(const struct option *opt UNUSED,
 	return 0;
 }
 
-static int maintenance_run(int argc, const char **argv, const char *prefix)
+static int maintenance_run(int argc, const char **argv, const char *prefix,
+			   struct repository *repo UNUSED)
 {
 	int i;
 	struct maintenance_run_opts opts = MAINTENANCE_RUN_OPTS_INIT;
@@ -1623,7 +1651,8 @@ static char const * const builtin_maintenance_register_usage[] = {
 	NULL
 };
 
-static int maintenance_register(int argc, const char **argv, const char *prefix)
+static int maintenance_register(int argc, const char **argv, const char *prefix,
+				struct repository *repo UNUSED)
 {
 	char *config_file = NULL;
 	struct option options[] = {
@@ -1687,7 +1716,8 @@ static char const * const builtin_maintenance_unregister_usage[] = {
 	NULL
 };
 
-static int maintenance_unregister(int argc, const char **argv, const char *prefix)
+static int maintenance_unregister(int argc, const char **argv, const char *prefix,
+				  struct repository *repo UNUSED)
 {
 	int force = 0;
 	char *config_file = NULL;
@@ -1893,7 +1923,7 @@ static int get_random_minute(void)
 	if (getenv("GIT_TEST_MAINT_SCHEDULER"))
 		return 13;
 
-	return git_rand() % 60;
+	return git_rand(0) % 60;
 }
 
 static int is_launchctl_available(void)
@@ -2890,8 +2920,17 @@ static int update_background_schedule(const struct maintenance_start_opts *opts,
 	char *lock_path = xstrfmt("%s/schedule", the_repository->objects->odb->path);
 
 	if (hold_lock_file_for_update(&lk, lock_path, LOCK_NO_DEREF) < 0) {
+		if (errno == EEXIST)
+			error(_("unable to create '%s.lock': %s.\n\n"
+			    "Another scheduled git-maintenance(1) process seems to be running in this\n"
+			    "repository. Please make sure no other maintenance processes are running and\n"
+			    "then try again. If it still fails, a git-maintenance(1) process may have\n"
+			    "crashed in this repository earlier: remove the file manually to continue."),
+			    absolute_path(lock_path), strerror(errno));
+		else
+			error_errno(_("cannot acquire lock for scheduled background maintenance"));
 		free(lock_path);
-		return error(_("another process is scheduling background maintenance"));
+		return -1;
 	}
 
 	for (i = 1; i < ARRAY_SIZE(scheduler_fn); i++) {
@@ -2917,7 +2956,8 @@ static const char *const builtin_maintenance_start_usage[] = {
 	NULL
 };
 
-static int maintenance_start(int argc, const char **argv, const char *prefix)
+static int maintenance_start(int argc, const char **argv, const char *prefix,
+			     struct repository *repo)
 {
 	struct maintenance_start_opts opts = { 0 };
 	struct option options[] = {
@@ -2940,7 +2980,7 @@ static int maintenance_start(int argc, const char **argv, const char *prefix)
 	if (update_background_schedule(&opts, 1))
 		die(_("failed to set up maintenance schedule"));
 
-	if (maintenance_register(ARRAY_SIZE(register_args)-1, register_args, NULL))
+	if (maintenance_register(ARRAY_SIZE(register_args)-1, register_args, NULL, repo))
 		warning(_("failed to add repo to global config"));
 	return 0;
 }
@@ -2950,7 +2990,8 @@ static const char *const builtin_maintenance_stop_usage[] = {
 	NULL
 };
 
-static int maintenance_stop(int argc, const char **argv, const char *prefix)
+static int maintenance_stop(int argc, const char **argv, const char *prefix,
+			    struct repository *repo UNUSED)
 {
 	struct option options[] = {
 		OPT_END()
@@ -2970,7 +3011,7 @@ static const char * const builtin_maintenance_usage[] = {
 int cmd_maintenance(int argc,
 		    const char **argv,
 		    const char *prefix,
-		    struct repository *repo UNUSED)
+		    struct repository *repo)
 {
 	parse_opt_subcommand_fn *fn = NULL;
 	struct option builtin_maintenance_options[] = {
@@ -2984,5 +3025,5 @@ int cmd_maintenance(int argc,
 
 	argc = parse_options(argc, argv, prefix, builtin_maintenance_options,
 			     builtin_maintenance_usage, 0);
-	return fn(argc, argv, prefix);
+	return fn(argc, argv, prefix, repo);
 }

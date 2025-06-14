@@ -379,7 +379,7 @@ static int delete_enlistment(struct strbuf *enlistment)
 	offset = offset_1st_component(enlistment->buf);
 	path_sep = find_last_dir_sep(enlistment->buf + offset);
 	strbuf_add(&parent, enlistment->buf,
-		   path_sep ? path_sep - enlistment->buf : offset);
+		   path_sep ? (size_t) (path_sep - enlistment->buf) : offset);
 	if (chdir(parent.buf) < 0) {
 		int res = error_errno(_("could not switch to '%s'"), parent.buf);
 		strbuf_release(&parent);
@@ -409,6 +409,7 @@ void load_builtin_commands(const char *prefix UNUSED,
 static int cmd_clone(int argc, const char **argv)
 {
 	const char *branch = NULL;
+	char *branch_to_free = NULL;
 	int full_clone = 0, single_branch = 0, show_progress = isatty(2);
 	int src = 1, tags = 1;
 	struct option clone_options[] = {
@@ -490,7 +491,7 @@ static int cmd_clone(int argc, const char **argv)
 	/* common-main already logs `argv` */
 	trace2_def_repo(the_repository);
 
-	if (!branch && !(branch = remote_default_branch(url))) {
+	if (!branch && !(branch = branch_to_free = remote_default_branch(url))) {
 		res = error(_("failed to get default branch for '%s'"), url);
 		goto cleanup;
 	}
@@ -552,6 +553,7 @@ static int cmd_clone(int argc, const char **argv)
 	res = register_dir();
 
 cleanup:
+	free(branch_to_free);
 	free(enlistment);
 	free(dir);
 	strbuf_release(&buf);
@@ -654,7 +656,7 @@ static int cmd_reconfigure(int argc, const char **argv)
 		NULL
 	};
 	struct string_list scalar_repos = STRING_LIST_INIT_DUP;
-	int i, res = 0;
+	int res = 0;
 	struct strbuf commondir = STRBUF_INIT, gitdir = STRBUF_INIT;
 
 	argc = parse_options(argc, argv, NULL, options,
@@ -672,7 +674,7 @@ static int cmd_reconfigure(int argc, const char **argv)
 
 	git_config(get_scalar_repos, &scalar_repos);
 
-	for (i = 0; i < scalar_repos.nr; i++) {
+	for (size_t i = 0; i < scalar_repos.nr; i++) {
 		int succeeded = 0;
 		struct repository *old_repo, r = { NULL };
 		const char *dir = scalar_repos.items[i].string;
@@ -732,6 +734,7 @@ static int cmd_reconfigure(int argc, const char **argv)
 			succeeded = 1;
 
 		the_repository = old_repo;
+		repo_clear(&r);
 
 		if (toggle_maintenance(1) >= 0)
 			succeeded = 1;

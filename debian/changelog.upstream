@@ -1,3 +1,1449 @@
+Version v2.49.0; changes since v2.49.0-rc2:
+-------------------------------------------
+
+Alexander Shopov (1):
+      l10n: bg.po: Updated Bulgarian translation (5836t)
+
+Arkadii Yakovets (1):
+      l10n: uk: add 2.49 translation
+
+Bagas Sanjaya (1):
+      l10n: po-id for 2.49
+
+Emir SARI (1):
+      l10n: tr: Update Turkish translations for 2.49.0
+
+Jean-Noël Avila (1):
+      l10n: fr: 2.49 round 2
+
+Junio C Hamano (2):
+      A bit more updates after -rc2
+      Git 2.49
+
+Martin Ågren (1):
+      git-clone doc: fix indentation
+
+Peter Krefting (1):
+      l10n: sv.po: Update Swedish translation
+
+Philippe Blain (2):
+      config/remote.txt: reunite 'severOption' description paragraphs
+      config/remote.txt: improve wording for 'remote.<name>.followRemoteHEAD'
+
+Ralf Thielow (1):
+      l10n: update German translation
+
+Ruggero Turra (1):
+      l10n: it: fix spelling of "sorgente" (Italian for "source")
+
+Teng Long (1):
+      l10n: zh_CN: updated translation for 2.49
+
+Toon Claes (2):
+      help: include git-zlib.h to print zlib version
+      help: print zlib-ng version number
+
+Tuomas Ahola (1):
+      l10n: sv.po: Fix Swedish typos
+
+Vũ Tiến Hưng (1):
+      l10n: Updated translation for vi-2.49
+
+Yi-Jyun Pan (1):
+      l10n: zh_TW: Git 2.49.0 round 1
+
+seoyeon-kwon (1):
+      l10n: ko: fix minor typo in Korean translation
+
+
+Version v2.49.0-rc2; changes since v2.49.0-rc1:
+-----------------------------------------------
+
+Christian Couder (3):
+      Add 'promisor-remote' capability to protocol v2
+      promisor-remote: check advertised name or URL
+      doc: add technical design doc for large object promisors
+
+David Mandelberg (1):
+      editorconfig: add .bash extension
+
+Johannes Schindelin (3):
+      ident: stop assuming that `gw_gecos` is writable
+      meson: fix sorting
+      cmake: generalize the handling of the `CLAR_TEST_OBJS` list
+
+Junio C Hamano (5):
+      doc: fix build-docdep.perl
+      BreakingChanges: clarify the procedure
+      refs: show --no-reflog in the help text
+      A few more after -rc1
+      Git 2.49-rc2
+
+Patrick Steinhardt (16):
+      path: refactor `repo_common_path()` family of functions
+      path: refactor `repo_git_path()` family of functions
+      path: refactor `repo_worktree_path()` family of functions
+      submodule: refactor `submodule_to_gitdir()` to accept a repo
+      path: refactor `repo_submodule_path()` family of functions
+      path: drop unused `strbuf_git_path()` function
+      path: drop `git_pathdup()` in favor of `repo_git_path()`
+      path: drop `git_path_buf()` in favor of `repo_git_path_replace()`
+      worktree: return allocated string from `get_worktree_git_dir()`
+      path: drop `git_common_path()` in favor of `repo_common_path()`
+      rerere: let `rerere_path()` write paths into a caller-provided buffer
+      path: drop `git_path()` in favor of `repo_git_path()`
+      repo-settings: introduce function to clear struct
+      environment: move access to "core.hooksPath" into repo settings
+      environment: move access to "core.sharedRepository" into repo settings
+      path: adjust last remaining users of `the_repository`
+
+Phillip Wood (2):
+      meson: fix building technical and howto docs
+      docs: fix repository-layout when building with breaking changes
+
+René Scharfe (1):
+      reftable: release name on reftable_reader_new() error
+
+Seyi Kuforiji (4):
+      t/unit-tests: implement clar specific oid helper functions
+      t/unit-tests: convert oid-array test to use clar test framework
+      t/unit-tests: convert oidmap test to use clar test framework
+      t/unit-tests: convert oidtree test to use clar test framework
+
+Taylor Blau (1):
+      fetch: fix following tags when fetching specific OID
+
+Todd Zullinger (37):
+      doc: update howto-index.sh for .adoc extensions
+      contrib/contacts: rename .txt to .adoc
+      contrib/subtree: rename .txt to .adoc
+      t0450: *.txt -> *.adoc fixes
+      .gitattributes: more *.txt -> *.adoc updates
+      doc: remove unneeded .gitattributes
+      Makefile: update reference to technical/racy-git.adoc
+      README: *.txt -> *.adoc fixes
+      CodingGuidelines: *.txt -> *.adoc fixes
+      MyFirstContribution: *.txt -> *.adoc fixes
+      MyFirstObjectWalk: *.txt -> *.adoc fixes
+      howto/new-command: update reference to builtin docs
+      technical/partial-clone: update reference to rev-list-options.adoc
+      doc: *.txt -> *.adoc fixes
+      advice.h: *.txt -> *.adoc fixes
+      apply.c: *.txt -> *.adoc fixes
+      builtin.h: *.txt -> *.adoc fixes
+      config.c: *.txt -> *.adoc fixes
+      contrib/long-running-filter: *.txt -> *.adoc fixes
+      diff.h: *.txt -> *.adoc fixes
+      diffcore.h: *.txt -> *.adoc fixes
+      fsck.h: *.txt -> *.adoc fixes
+      list-objects-filter-options.h: *.txt -> *.adoc fixes
+      object-name.c: *.txt -> *.adoc fixes
+      parse-options.h: *.txt -> *.adoc fixes
+      pseudo-merge.h: *.txt -> *.adoc fixes
+      refs.h: *.txt -> *.adoc fixes
+      setup.c: *.txt -> *.adoc fixes
+      simple-ipc.h: *.txt -> *.adoc fixes
+      t/helper/test-rot13-filter.c: *.txt -> *.adoc fixes
+      t6012: *.txt -> *.adoc fixes
+      t6434: *.txt -> *.adoc fixes
+      trace2.h: *.txt -> *.adoc fixes
+      trace2/tr2_sysenv.c: *.txt -> *.adoc fixes
+      transport.h: *.txt -> *.adoc fixes
+      unpack-trees.c: *.txt -> *.adoc fixes
+      xdiff: *.txt -> *.adoc fixes
+
+
+Version v2.49.0-rc1; changes since v2.49.0-rc0:
+-----------------------------------------------
+
+D. Ben Knoble (1):
+      t/aggregate-results: fix paste(1) invocation
+
+Junio C Hamano (4):
+      BreakingChanges: clarify branches/ and remotes/
+      A bit more post -rc0
+      A few more before -rc1
+      Git 2.49-rc1
+
+Karthik Nayak (1):
+      builtin/refs: add '--no-reflog' flag to drop reflogs
+
+Lucas Seiki Oshiro (1):
+      merge-strategies.adoc: detail submodule merge
+
+M Hickford (1):
+      contrib/credential: fix compilation of wincred helper with MSVC
+
+Meet Soni (1):
+      merge-recursive: optimize time complexity for process_renames
+
+Patrick Steinhardt (23):
+      GIT-BUILD-OPTIONS: propagate project's source directory
+      contrib/credential: fix "netrc" tests with out-of-tree builds
+      contrib/credential: fix compiling "libsecret" helper
+      contrib/credential: fix compilation of "osxkeychain" helper
+      meson: wire up credential helpers
+      meson: wire up git-contacts(1)
+      meson: wire up static analysis via Coccinelle
+      ci: fix propagating UTF-8 test locale in musl-based Meson job
+      ci: exercise credential helpers
+      meson: fix exec path with enabled runtime prefix
+      meson: fix OpenSSL fallback when not explicitly required
+      meson: inline the static 'git' library
+      meson: simplify use of the common-main library
+      meson: introduce `libgit_curl` dependency
+      meson: stop linking libcurl into all executables
+      meson: drop separate version library
+      meson: improve PATH handling
+      meson: improve handling of `sane_tool_path` option
+      meson: prevent finding sed(1) in a loop
+      meson: fix overwritten `git` variable
+      meson: consistently use custom program paths to resolve programs
+      gitlab-ci: restrict maximum number of link jobs on Windows
+      gitlab-ci: fix "msvc-meson" test job succeeding despite test failures
+
+Phillip Wood (1):
+      rebase -i: reword empty commit after fast-forward
+
+René Scharfe (1):
+      commit: avoid parent list buildup in clear_commit_marks_many()
+
+Usman Akinyemi (6):
+      version: replace manual ASCII checks with isprint() for clarity
+      version: refactor redact_non_printables()
+      version: refactor get_uname_info()
+      version: extend get_uname_info() to hide system details
+      t5701: add setup test to remove side-effect dependency
+      agent: advertise OS name via agent capability
+
+brian m. carlson (1):
+      http: allow using netrc for WebDAV-based HTTP protocol
+
+
+Version v2.49.0-rc0; changes since v2.48.1:
+-------------------------------------------
+
+Adam Dinwoodie (1):
+      Makefile: set default goals in makefiles
+
+Adam Johnson (1):
+      difftool docs: restore correct position of tool list
+
+Adam Murray (1):
+      trace2: prevent segfault on config collection with valueless true
+
+Alecs King (1):
+      instaweb: fix ip binding for the python http.server
+
+Alexander Shopov (1):
+      parse-options: localize mark-up of placeholder text in the short help
+
+Andrew Carter (1):
+      docs: indicate http.sslCertType and sslKeyType
+
+Ayush Chandekar (1):
+      t6423: fix suppression of Git’s exit code in tests
+
+Bence Ferdinandy (2):
+      fetch set_head: refactor to use remote directly
+      fetch set_head: fix non-mirror remotes in bare repositories
+
+Calvin Wan (1):
+      libgit: add higher-level libgit crate
+
+D. Ben Knoble (1):
+      completion: repair config completion for Zsh
+
+David Aguilar (11):
+      help: show the suggested command when help.autocorrect is false
+      help: add "show" as a valid configuration value
+      difftool: eliminate use of global variables
+      difftool: eliminate use of the_repository
+      difftool: eliminate use of USE_THE_REPOSITORY_VARIABLE
+      xdiff: move sign comparison warning guard into each file
+      xdiff: avoid signed vs. unsigned comparisons in xdiffi.c
+      xdiff: avoid signed vs. unsigned comparisons in xemit.c
+      xdiff: avoid signed vs. unsigned comparisons in xhistogram.c
+      xdiff: avoid signed vs. unsigned comparisons in xpatience.c
+      xdiff: avoid signed vs. unsigned comparisons in xutils.c
+
+Derrick Stolee (18):
+      path-walk: introduce an object walk by path
+      test-lib-functions: add test_cmp_sorted
+      t6601: add helper for testing path-walk API
+      path-walk: allow consumer to specify object types
+      path-walk: visit tags and cached objects
+      path-walk: mark trees and blobs as UNINTERESTING
+      path-walk: reorder object visits
+      pack-objects: add --name-hash-version option
+      repack: add --name-hash-version option
+      pack-objects: add GIT_TEST_NAME_HASH_VERSION
+      p5313: add size comparison test
+      test-tool: add helper for name-hash values
+      pack-objects: prevent name hash version change
+      backfill: add builtin boilerplate
+      backfill: basic functionality and tests
+      backfill: add --min-batch-size=<n> option
+      backfill: add --sparse option
+      backfill: assume --sparse when sparse-checkout is enabled
+
+Eliah Kagan (1):
+      compat/mingw: rename the symlink, not the target
+
+Elijah Newren (3):
+      object-name: fix resolution of object names containing curly braces
+      object-name: be more strict in parsing describe-like output
+      doc: clarify the intent of the renormalize option in the merge machinery
+
+Jacob Keller (1):
+      mailmap: fix check-mailmap with full mailmap line
+
+James J. Raden (1):
+      gitk: make the "list references" default window width wider
+
+Jan Palus (1):
+      t8002: fix ambiguous printf conversion specifications
+
+Jean-Noël Avila (7):
+      doc: convert git-notes to new documentation format
+      doc: convert git-restore to new style format
+      doc: apply new documentation guidelines to git commit
+      doc: the mode param of -u of git commit is optional
+      doc: make more direct explanations in git commit options
+      doc: convert git commit config to new format
+      doc: migrate git-commit manpage secondary files to new format
+
+Jeff King (25):
+      test-lib: invert return value of check_test_results_san_file_empty
+      test-lib: simplify lsan results check
+      test-lib: add a few comments to LSan log checking
+      t7407: use test_grep
+      run_diff_files(): delay allocation of combine_diff_path
+      combine-diff: add combine_diff_path_new()
+      tree-diff: clear parent array in path_appendnew()
+      combine-diff: use pointer for parent paths
+      diff: add a comment about combine_diff_path.parent.path
+      run_diff_files(): de-mystify the size of combine_diff_path struct
+      tree-diff: drop path_appendnew() alloc optimization
+      tree-diff: pass whole path string to path_appendnew()
+      tree-diff: inline path_appendnew()
+      combine-diff: drop public declaration of combine_diff_path_size()
+      tree-diff: drop list-tail argument to diff_tree_paths()
+      tree-diff: use the name "tail" to refer to list tail
+      tree-diff: simplify emit_path() list management
+      tree-diff: make list tail-passing more explicit
+      t0012: optionally check that "-h" output goes to stdout
+      packfile: factor out --pack_header argument parsing
+      parse_pack_header_option(): avoid unaligned memory writes
+      index-pack, unpack-objects: use get_be32() for reading pack header
+      index-pack, unpack-objects: use skip_prefix to avoid magic number
+      path-walk: drop redundant parse_tree() call
+      ci: set CI_JOB_IMAGE for coverity job
+
+Jiang Xin (5):
+      t5548: refactor to reuse setup_upstream() function
+      t5548: refactor test cases by resetting upstream
+      t5548: add porcelain push test cases for dry-run mode
+      send-pack: new return code "ERROR_SEND_PACK_BAD_REF_STATUS"
+      send-pack: gracefully close the connection for atomic push
+
+Johannes Schindelin (3):
+      gitk(Windows): avoid inadvertently calling executables in the worktree
+      gitk: fix arrow keys in input fields with Tcl/Tk >= 8.6
+      bundle: avoid closing file descriptor twice
+
+Jonathan Tan (1):
+      pack-objects: create new name-hash function version
+
+Josh Steadmon (3):
+      common-main: split init and exit code into new files
+      libgit-sys: introduce Rust wrapper for libgit.a
+      libgit-sys: also export some config_set functions
+
+Julian Prein (1):
+      config.txt: add trailer.* variables
+
+Junio C Hamano (26):
+      show-index: the short help should say the command reads from its input
+      sign-compare: avoid comparing ptrdiff with an int/unsigned
+      Start the Git 2.49 cycle
+      The first batch
+      gitcli: document that command line trumps config and env
+      parse-options: add show_usage_with_options_if_asked()
+      usage: add show_usage_if_asked()
+      builtins: send usage_with_options() help text to standard output
+      oddballs: send usage() help text to standard output
+      builtin: send usage() help text to standard output
+      bswap.h: squelch potential sparse -Wcast-truncate warnings
+      The second batch
+      The third batch
+      The fourth batch
+      The fifth batch
+      The sixth batch
+      The seventh batch
+      The eighth batch
+      The ninth batch
+      doc: centrally document various ways tospell `true` and `false`
+      The tenth batch
+      The eleventh batch
+      The twelfth batch
+      The thirteenth batch
+      The fourteenth batch
+      Git 2.49-rc0
+
+Justin Tobler (4):
+      fsck: reject misconfigured fsck.skipList
+      ci: fix base commit fallback for check-whitespace and check-style
+      rev-list: add print-info action to print missing object path
+      rev-list: extend print-info to print missing object type
+
+Karsten Blees (1):
+      gitk: Unicode file name support
+
+Karthik Nayak (11):
+      reftable: write correct max_update_index to header
+      pack-write: pass hash_algo to `fixup_pack_header_footer()`
+      pack-write: pass repository to `index_pack_lockfile()`
+      pack-write: pass hash_algo to `write_idx_file()`
+      pack-write: pass hash_algo to `write_rev_file()`
+      pack-write: pass hash_algo to internal functions
+      refs: mark `ref_transaction_update_reflog()` as static
+      refs: use 'uint64_t' for 'ref_update.index'
+      reftable: prevent 'update_index' changes after adding records
+      refs: fix creation of reflog entries for symrefs
+      refs/reftable: fix uninitialized memory access of `max_index`
+
+Lucas Oshiro (1):
+      t7603: replace test -f by test_path_is_file
+
+M Hickford (4):
+      credential-cache: respect authtype capability
+      docs: list popular credential helpers
+      docs: discuss caching personal access tokens
+      doc: use 'title' consistently
+
+Matteo Bagnolini (1):
+      t7110: replace `test -f` with `test_path_is_*` helpers
+
+Matthew Hughes (1):
+      docs: fix typesetting of merge driver placeholders
+
+Meet Soni (7):
+      remote: rename function omit_name_by_refspec
+      refspec: relocate refname_matches_negative_refspec_item
+      remote: rename query_refspecs functions
+      refspec: relocate matching related functions
+      refspec: relocate apply_refspecs and related funtions
+      remote: relocate valid_remote_name
+      refspec: clarify function naming and documentation
+
+Mike Hommey (1):
+      connect: address -Wsign-compare warnings
+
+Olga Pilipenco (1):
+      worktree: detect from secondary worktree if main worktree is bare
+
+Patrick Steinhardt (101):
+      progress: stop using `the_repository`
+      pager: stop using `the_repository`
+      trace: stop using `the_repository`
+      serve: stop using `the_repository`
+      send-pack: stop using `the_repository`
+      server-info: stop using `the_repository`
+      diagnose: stop using `the_repository`
+      mailinfo: stop using `the_repository`
+      credential: stop using `the_repository`
+      resolve-undo: stop using `the_repository`
+      tmp-objdir: stop using `the_repository`
+      add-interactive: stop using `the_repository`
+      graph: stop using `the_repository`
+      match-trees: stop using `the_repository`
+      prio-queue: fix type of `insertion_ctr`
+      commit-reach: fix index used to loop through unsigned integer
+      commit-reach: fix type of `min_commit_date`
+      commit-reach: use `size_t` to track indices in `remove_redundant()`
+      commit-reach: use `size_t` to track indices in `get_reachable_subset()`
+      builtin/log: use `size_t` to track indices
+      builtin/log: fix remaining -Wsign-compare warnings
+      shallow: fix -Wsign-compare warnings
+      commit-reach: use `size_t` to track indices when computing merge bases
+      object-file: fix race in object collision check
+      meson: consistenlty spell 'CommonCrypto'
+      meson: deduplicate access to SHA1/SHA256 backend options
+      meson: require SecurityFramework when it's used as SHA1 backend
+      meson: simplify conditions for HTTPS and SHA1 dependencies
+      meson: add missing dots for build options
+      meson: wire up unsafe SHA1 backend
+      meson: provide a summary of configured backends
+      object-file: rename variables in `check_collision()`
+      object-file: don't special-case missing source file in collision check
+      object-file: retry linking file into place when occluding file vanishes
+      wrapper: allow generating insecure random bytes
+      reftable/stack: accept insecure random bytes
+      t0060: fix EBUSY in MinGW when setting up runtime prefix
+      t7422: fix flaky test caused by buffered stdout
+      github: adapt containerized jobs to be rootless
+      github: convert all Linux jobs to be containerized
+      github: simplify computation of the job's distro
+      gitlab-ci: remove the "linux-old" job
+      gitlab-ci: add linux32 job testing against i386
+      ci: stop special-casing for Ubuntu 16.04
+      ci: use latest Ubuntu release
+      ci: remove stale code for Azure Pipelines
+      contrib/subtree: fix building docs
+      meson: introduce build option for contrib
+      meson: wire up the git-subtree(1) command
+      meson: stop disabling -Wsign-compare
+      reftable/record: drop unused `print` function pointer
+      reftable/record: handle overflows when decoding varints
+      reftable/basics: adjust `common_prefix_size()` to return `size_t`
+      reftable/basics: adjust `hash_size()` to return `uint32_t`
+      reftable/block: adapt header and footer size to return a `size_t`
+      reftable/block: adjust type of the restart length
+      reftable/blocksource: adjust type of the block length
+      reftable/blocksource: adjust `read_block()` to return `ssize_t`
+      reftable: address trivial -Wsign-compare warnings
+      refs: fix migration of reflogs respecting "core.logAllRefUpdates"
+      Makefile: wire up build option for deprecated features
+      ci: merge linux-gcc-default into linux-gcc
+      ci: repurpose "linux-gcc" job for deprecations
+      builtin/pack-redundant: remove subcommand with breaking changes
+      GIT-VERSION-GEN: simplify computing the dirty marker
+      GIT-VERSION-GEN: allow running without input and output files
+      meson: populate project version via GIT-VERSION-GEN
+      meson: fix dependencies for generated headers
+      meson: wire up development environments
+      meson: wire up generation of distribution archive
+      meson: wire up fuzzers
+      meson: make the CSPRNG backend configurable
+      meson: fix compilation with Visual Studio
+      ci: raise error when Meson generates warnings
+      ci: wire up Visual Studio build with Meson
+      remote: announce removal of "branches/" and "remotes/"
+      compat: drop `uncompress2()` compatibility shim
+      git-compat-util: drop `z_const` define
+      compat: introduce new "zlib.h" header
+      git-compat-util: move include of "compat/zlib.h" into "git-zlib.h"
+      compat/zlib: provide `deflateBound()` shim centrally
+      compat/zlib: provide stubs for `deflateSetHeader()`
+      git-zlib: cast away potential constness of `next_in` pointer
+      compat/zlib: allow use of zlib-ng as backend
+      ci: switch linux-musl to use Meson
+      ci: make "linux-musl" job use zlib-ng
+      unix-socket: fix memory leak when chdir(3p) fails
+      scalar: free result of `remote_default_branch()`
+      t0001: remove duplicate test
+      setup: fix reinit of repos with incompatible GIT_DEFAULT_REF_FORMAT
+      setup: fix reinit of repos with incompatible GIT_DEFAULT_HASH
+      hash: convert hashing context to a structure
+      hash: stop typedeffing the hash context
+      hash: provide generic wrappers to update hash contexts
+      global: adapt callers to use generic hash context helpers
+      t5504: modernize test by moving heredocs into test bodies
+      t5548: add new porcelain test cases
+      t5543: atomic push reports exit code failure
+      builtin/repack: fix `--keep-unreachable` when there are no packs
+      gitk: extract script to build executable
+      gitk: introduce support for the Meson build system
+
+Peter Oliver (2):
+      meson: bump minimum required Perl version to 5.26.0
+      meson: fix Perl version check for Meson versions before 1.7.0
+
+Phillip Wood (6):
+      apply: detect overflow when parsing hunk header
+      merge-tree --stdin: flush stdout to avoid deadlock
+      merge-tree: remove redundant code
+      merge-tree: only use basic merge config
+      merge-tree: improve docs for --stdin
+      merge-tree: fix link formatting in html docs
+
+Piotr Szlazak (1):
+      doc: documentation for http.uploadarchive config option
+
+René Scharfe (3):
+      ref-filter: move ahead-behind bases into used_atom
+      ref-filter: move is-base tip to used_atom
+      ref-filter: remove ref_format_clear()
+
+Roy Eldar (7):
+      git-submodule.sh: improve parsing of some long options
+      git-submodule.sh: improve parsing of short options
+      git-submodule.sh: get rid of isnumber
+      git-submodule.sh: get rid of unused variable
+      git-submodule.sh: add some comments
+      git-submodule.sh: improve variables readability
+      git-submodule.sh: rename some variables
+
+Sam James (1):
+      meson: fix missing deps for technical articles
+
+Scott Chacon (1):
+      help: interpret boolean string values for help.autocorrect
+
+Sebastian Schuberth (1):
+      gitk: Use an external icon file on Windows
+
+Seyi Kuforiji (9):
+      t/unit-tests: convert hash to use clar test framework
+      t/unit-tests: handle dashes in test suite filenames
+      t/unit-tests: convert mem-pool test to use clar test framework
+      t/unit-tests: adapt priority queue test to use clar test framework
+      t/unit-tests: convert reftable tree test to use clar test framework
+      t/unit-tests: convert hashmap test to use clar test framework
+      t/unit-tests: adapt example decorate test to use clar test framework
+      t/unit-tests: convert strbuf test to use clar test framework
+      t/unit-tests: convert strcmp-offset test to use clar test framework
+
+Sören Krecker (1):
+      date.c: Fix type missmatch warings from msvc
+
+Taylor Blau (9):
+      t/helper/test-tool: implement sha1-unsafe helper
+      csum-file: store the hash algorithm as a struct field
+      csum-file.c: extract algop from hashfile_checksum_valid()
+      hash.h: introduce `unsafe_hash_algo()`
+      csum-file.c: use unsafe_hash_algo()
+      t/helper/test-hash.c: use unsafe_hash_algo()
+      csum-file: introduce hashfile_checkpoint_init()
+      hash.h: drop unsafe_ function variants
+      Makefile: remove accidental recipe prefix in conditional
+
+Toon Claes (8):
+      meson: ensure correct version-def.h is used
+      clone: cut down on global variables in clone.c
+      clone: make it possible to specify --tags
+      clone: refactor wanted_peer_refs()
+      clone: add tags refspec earlier to fetch refspec
+      clone: introduce struct clone_opts in builtin/clone.c
+      parse-options: introduce die_for_incompatible_opt2()
+      builtin/clone: teach git-clone(1) the --revision= option
+
+Usman Akinyemi (1):
+      builtin/update-server-info: remove the_repository global variable
+
+ZheNing Hu (1):
+      gc: add `--expire-to` option
+
+ambar chakravartty (1):
+      t5401: prefer test_path_is_* helper function
+
+brian m. carlson (7):
+      doc: update gitignore for .adoc extension
+      editorconfig: add .adoc extension
+      gitattributes: mark AsciiDoc files as LF-only
+      doc: use .adoc extension for AsciiDoc files
+      Remove obsolete ".txt" extensions for AsciiDoc files
+      thunderbird-patch-inline: avoid bashism
+      diff: don't crash with empty argument to -G or -S
+
+
+Version v2.48.1; changes since v2.48.0:
+---------------------------------------
+
+Johannes Schindelin (12):
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+      Git 2.41.3
+      Git 2.42.4
+      Git 2.43.6
+      Git 2.44.3
+      Git 2.45.3
+      Git 2.46.3
+      Git 2.47.2
+
+Junio C Hamano (3):
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+      Git 2.48.1
+
+Patrick Steinhardt (1):
+      t7300: work around platform-specific behaviour with long paths on MinGW
+
+
+Version v2.48.0; changes since v2.48.0-rc2:
+-------------------------------------------
+
+Alexander Shopov (1):
+      l10n: bg.po: Updated Bulgarian translation (5804t)
+
+Arkadii Yakovets (1):
+      l10n: uk: v2.48 update
+
+Bagas Sanjaya (1):
+      l10n: po-id for 2.48
+
+Bence Ferdinandy (1):
+      fetch: fix erroneous set_head advice message
+
+Emir SARI (1):
+      l10n: tr: Update Turkish translations for 2.48
+
+Ethiraric (1):
+      l10n: fr.po: Minor improvements
+
+Fredrik (1):
+      l10n: sv.po, fixed swedish typos
+
+Jean-Noël Avila (1):
+      l10n: fr: v2.48.0
+
+Johannes Schindelin (2):
+      t-reftable-basics: allow for `malloc` to be `#define`d
+      GIT-VERSION-GEN: allow it to be run in parallel
+
+Junio C Hamano (1):
+      Git 2.48
+
+Kristoffer Haugsbakk (1):
+      RelNotes/2.48.0: fix typos etc.
+
+Patrick Steinhardt (2):
+      builtin/blame: fix out-of-bounds read with excessive `--abbrev`
+      builtin/blame: fix out-of-bounds write with blank boundary commits
+
+Peter Krefting (1):
+      l10n: sv.po: Update Swedish translation
+
+Ralf Thielow (1):
+      l10n: Update German translation
+
+Sam James (1):
+      meson: fix perl dependencies
+
+Teng Long (1):
+      l10n: zh_CN: updated translation for 2.48
+
+Vũ Tiến Hưng (1):
+      l10n: vi: Updated translation for 2.48
+
+Yi-Jyun Pan (2):
+      l10n: zh_TW: Git 2.48
+      l10n: zh_TW: Git 2.48 round 2
+
+
+Version v2.48.0-rc2; changes since v2.48.0-rc1:
+-----------------------------------------------
+
+Alexander Shopov (2):
+      git-gui i18n: Updated Bulgarian translation (579t)
+      gitk: Update Bulgarian translation (327t)
+
+Jeff King (9):
+      test-lib: use individual lsan dir for --stress runs
+      Revert "index-pack: spawn threads atomically"
+      thread-utils: introduce optional barrier type
+      index-pack: work around LSan threading race with barrier
+      grep: work around LSan threading race with barrier
+      test-lib: rely on logs to detect leaks
+      test-lib: simplify leak-log checking
+      test-lib: check leak logs for presence of DEDUP_TOKEN
+      test-lib: ignore leaks in the sanitizer's thread code
+
+Junio C Hamano (3):
+      A bit more post Git 2.48-rc1
+      Revert barrier-based LSan threading race workaround
+      Git 2.48-rc2
+
+Martin Ågren (2):
+      git.txt: fix heading line of tildes
+      gitcli.txt: typeset pathnames as monospace
+
+Patrick Steinhardt (15):
+      meson: wire up support for AsciiDoctor
+      meson: properly wire up dependencies for our docs
+      meson: fix generation of merge tools
+      meson: generate HTML pages for all man page categories
+      Documentation: inline user-manual.conf
+      meson: generate user manual
+      Documentation: refactor "api-index.sh" for out-of-tree builds
+      Documentation: refactor "howto-index.sh" for out-of-tree builds
+      meson: generate articles
+      meson: install static files for HTML documentation
+      t/Makefile: make "check-meson" work with Dash
+      Documentation: wire up sanity checks for Meson
+      bulk-checkin: fix segfault with unsafe SHA1 backend
+      builtin/fast-import: fix segfault with unsafe SHA1 backend
+      ci: exercise unsafe OpenSSL backend
+
+René Scharfe (4):
+      reftable: avoid leaks on realloc error
+      reftable: fix allocation count on realloc error
+      reftable: handle realloc error in parse_names()
+      t-reftable-merged: handle realloc errors
+
+
+Version v2.48.0-rc1; changes since v2.48.0-rc0:
+-----------------------------------------------
+
+Abhijeet Sonar (2):
+      show-index: fix uninitialized hash function
+      t5300: add test for 'show-index --object-format'
+
+Alejandro Barreto (1):
+      Document HOME environment variable
+
+Alexander Shopov (1):
+      Update the official repo of gitk
+
+Avi Halachmi (:avih) (3):
+      gitk: UI text: change "SHA1 ID" to "Commit ID"
+      gitk: prefs dialog: refine Auto-select UI
+      gitk: support auto-copy comit ID to primary clipboard
+
+Bence Ferdinandy (14):
+      t/t5505-remote: set default branch to main
+      t/t5505-remote: test failure of set-head
+      refs: standardize output of refs_read_symbolic_ref
+      refs: atomically record overwritten ref in update_symref
+      remote set-head: refactor for readability
+      remote set-head: better output for --auto
+      refs: add TRANSACTION_CREATE_EXISTS error
+      refs: add create_only option to refs_update_symref_extended
+      fetch: set remote/HEAD if it does not exist
+      fetch set_head: handle mirrored bare repositories
+      fetch: add configuration for set_head behaviour
+      fetch set_head: move warn advice into advise_if_enabled
+      fetch set_head: add warn-if-not-$branch option
+      remote set-head: set followRemoteHEAD to "warn" if "always"
+
+Christoph Sommer (2):
+      gitk: make headings of preferences bold
+      gitk: add text wrapping preferences
+
+Jeff King (1):
+      prio-queue: use size_t rather than int for size
+
+Johannes Schindelin (10):
+      log: --remerge-diff needs to keep around commit parents
+      range-diff: optionally include merge commits' diffs in the analysis
+      range-diff: introduce the convenience option `--remerge-diff`
+      mingw_rename: do support directory renames
+      GitHub ci(windows): speed up initializing Git for Windows' minimal SDK again
+      cmake: better support for out-of-tree builds follow-up
+      cmake(mergetools): better support for out-of-tree builds
+      cmake: use the correct file name for the Perl header
+      cmake: put the Perl modules into the correct location again
+      cmake/vcxproj: stop special-casing `remote-ext`
+
+Johannes Sixt (2):
+      git-gui: Remove forced rescan of stat-dirty files.
+      gitk: offer "Copy commit ID to X11 selection" only on X11
+
+Junio C Hamano (5):
+      csum-file: fix -Wsign-compare warning on 32-bit platform
+      fetch: do not ask for HEAD unnecessarily
+      Finishing touches before 2.48-rc1
+      Hopefully the final batch before 2.48-rc1
+      Git 2.48-rc1
+
+Karthik Nayak (10):
+      reftable/writer: ensure valid range for log's update_index
+      refs: include committer info in `ref_update` struct
+      refs: add `index` field to `struct ref_udpate`
+      refs/files: add count field to ref_lock
+      refs: extract out refname verification in transactions
+      refs: add `committer_info` to `ref_transaction_add_update()`
+      refs: introduce the `ref_transaction_update_reflog` function
+      refs: allow multiple reflog entries for the same refname
+      refs: add support for migrating reflogs
+      refs: mark invalid refname message for translation
+
+Kyle Lippincott (1):
+      doc: remove extra quotes in generated docs
+
+Martin Ågren (3):
+      asciidoctor-extensions.rb.in: delete existing <refmiscinfo/>
+      asciidoctor-extensions.rb.in: add missing word
+      asciidoctor-extensions.rb.in: inject GIT_DATE
+
+Meet Soni (1):
+      t7611: replace test -f with test_path_is* helpers
+
+Patrick Steinhardt (41):
+      git-compat-util: introduce macros to disable "-Wsign-compare" warnings
+      compat/regex: explicitly ignore "-Wsign-compare" warnings
+      compat/win32: fix -Wsign-compare warning in "wWinMain()"
+      global: mark code units that generate warnings with `-Wsign-compare`
+      config.mak.dev: drop `-Wno-sign-compare`
+      diff.h: fix index used to loop through unsigned integer
+      pkt-line: fix -Wsign-compare warning on 32 bit platform
+      global: trivial conversions to fix `-Wsign-compare` warnings
+      daemon: fix loops that have mismatching integer types
+      daemon: fix type of `max_connections`
+      gpg-interface: address -Wsign-comparison warnings
+      builtin/blame: fix type of `length` variable when emitting object ID
+      builtin/patch-id: fix type of `get_one_patchid()`
+      scalar: address -Wsign-compare warnings
+      t/helper: don't depend on implicit wraparound
+      gitlab-ci: update macOS images to Sonoma
+      ci/lib: remove duplicate trap to end "CI setup" group
+      ci/lib: do not interpret escape sequences in `group ()` arguments
+      ci/lib: fix "CI setup" sections with GitLab CI
+      ci/lib: support custom output directories when creating test artifacts
+      Makefile: drop -DSUPPRESS_ANNOTATED_LEAKS
+      t/unit-tests: rename clar-based unit tests to have a common prefix
+      meson: detect missing tests at configure time
+      Makefile: detect missing Meson tests
+      t: fix out-of-tree tests for some git-p4 tests
+      t: introduce compatibility options to clar-based tests
+      ci: wire up Meson builds
+      meson: skip gitweb build when Perl is disabled
+      Makefile: stop including "GIT-VERSION-FILE" in docs
+      Makefile: drop unneeded indirection for GIT-VERSION-GEN outputs
+      Makefile: introduce template for GIT-VERSION-GEN
+      GIT-VERSION-GEN: fix overriding GIT_VERSION
+      GIT-VERSION-GEN: fix overriding GIT_BUILT_FROM_COMMIT and GIT_DATE
+      meson: add options to override build information
+      reftable/stack: don't perform auto-compaction with less than two tables
+      reftable/merged: fix zero-sized allocation when there are no readers
+      reftable/stack: fix zero-sized allocation when there are no readers
+      reftable/basics: return NULL on zero-sized allocations
+      GIT-BUILD-OPTIONS: sort variables alphabetically
+      GIT-BUILD-OPTIONS: wire up NO_GITWEB option
+      meson: enable auto-discovered "gitweb"
+
+Peter Krefting (1):
+      gitk: sv.po: Update Swedish translation (323t)
+
+Seija Kijin (1):
+      git: use calloc instead of malloc + memset where possible
+
+Taylor Blau (1):
+      pack-bitmap.c: ensure pack validity for all reuse packs
+
+Tobias Pietzsch (1):
+      gitk: check main window visibility before waiting for it to show
+
+Toon Claes (1):
+      bundle: remove unneeded code
+
+Yuri Konotopov (1):
+      git-gui: use system encoding to show console output
+
+
+Version v2.48.0-rc0; changes since v2.47.2:
+-------------------------------------------
+
+Abraham Samuel Adekunle (2):
+      t7300-clean.sh: use test_path_* helper functions for error logging
+      notes: teach the -e option to edit messages in editor
+
+Alejandro R. Sedeño (1):
+      Makefile: adjust sed command for generating "clar-decls.h"
+
+Andrew Kreimer (4):
+      t: fix typos
+      t1016: clean up style
+      t: fix typos
+      t1016: clean up style
+
+Bence Ferdinandy (2):
+      t/README: add missing value for GIT_TEST_DEFAULT_REF_FORMAT
+      advice: suggest using subcommand "git config set"
+
+Caleb White (12):
+      worktree: refactor infer_backlink() to use *strbuf
+      worktree: link worktrees with relative paths
+      worktree: add test for path handling in linked worktrees
+      doc: consolidate extensions in git-config documentation
+      setup: correctly reinitialize repository version
+      worktree: add `relativeWorktrees` extension
+      worktree: refactor infer_backlink return
+      worktree: add `write_worktree_linking_files()` function
+      worktree: add relative cli/config options to `add` command
+      worktree: add relative cli/config options to `move` command
+      worktree: add relative cli/config options to `repair` command
+      worktree: refactor `repair_worktree_after_gitdir_move()`
+
+Chizoba ODINAKA (1):
+      t6050: avoid pipes with upstream Git commands
+
+Elijah Newren (5):
+      upload-pack: fix ambiguous error message
+      doc: correct misleading descriptions for --shallow-exclude
+      fast-import: avoid making replace refs point to themselves
+      fast-import: disallow "." and ".." path components
+      fast-import: disallow more path components
+
+Eric Sesterhenn (3):
+      fuzz: port fuzz-credential-from-url-gently from OSS-Fuzz
+      fuzz: port fuzz-parse-attr-line from OSS-Fuzz
+      fuzz: port fuzz-url-decode-mem from OSS-Fuzz
+
+Eric Sunshine (1):
+      worktree: repair copied repository and linked worktrees
+
+Jean-Noël Avila (9):
+      doc: introduce a synopsis typesetting
+      doc: update the guidelines to reflect the current formatting rules
+      doc: apply synopsis simplification on git-clone and git-init
+      doc: git-add.txt: convert to new style convention
+      doc: git-diff: apply new documentation guidelines
+      doc: git-diff: apply format changes to diff-options
+      doc: git-diff: apply format changes to diff-format
+      doc: git-diff: apply format changes to diff-generate-patch
+      doc: git-diff: apply format changes to config part
+
+Jeff King (29):
+      midx: avoid duplicate packed_git entries
+      t5550: count fetches in "previously-fetched .idx" test
+      dumb-http: store downloaded pack idx as tempfile
+      packfile: drop has_pack_index()
+      packfile: drop sha1_pack_name()
+      packfile: drop sha1_pack_index_name()
+      packfile: warn people away from parse_packed_git()
+      http-walker: use object_id instead of bare hash
+      packfile: convert find_sha1_pack() to use object_id
+      packfile: use object_id in find_pack_entry_one()
+      packfile: use oidread() instead of hashcpy() to fill object_id
+      rev-list: skip bitmap traversal for --left-right
+      t6120: demonstrate weakness in disjoint-root handling
+      t/perf: add tests for git-describe
+      describe: stop digging for max_candidates+1
+      describe: stop traversing when we run out of names
+      test-lib: check malloc debug LD_PRELOAD before using
+      fetch: adjust refspec->raw_nr when filtering prefetch refspecs
+      refspec: drop separate raw_nr count
+      refspec: store raw refspecs inside refspec_item
+      test-lib: move malloc-debug setup after $PATH setup
+      object-file: prefer array-of-bytes initializer for hash literals
+      object-file: drop confusing oid initializer of empty_tree struct
+      object-file: move empty_tree struct into find_cached_object()
+      object-file: drop oid field from find_cached_object() return value
+      object-file: treat cached_object values as const
+      object-file: inline empty tree and blob literals
+      t9300: test verification of renamed paths
+      describe: split "found all tags" and max_candidates logic
+
+John Cai (3):
+      git: pass in repo to builtin based on setup_git_directory_gently
+      annotate: remove usage of the_repository global
+      archive: remove the_repository global variable
+
+Jonathan Tan (10):
+      t0410: make test description clearer
+      t0410: use from-scratch server
+      t5300: move --window clamp test next to unclamped
+      Revert "fetch-pack: add a deref_without_lazy_fetch_extended()"
+      fetch-pack: die if in commit graph but not obj db
+      index-pack: repack local links into promisor packs
+      index-pack: teach --promisor to forbid pack name
+      index-pack --promisor: dedup before checking links
+      index-pack --promisor: don't check blobs
+      index-pack --promisor: also check commits' trees
+
+Junio C Hamano (19):
+      Start the 2.48 cycle
+      BreakingChanges: early adopter option
+      The eighth batch
+      The ninth batch
+      Clean up RelNotes for 2.48
+      The tenth batch
+      The eleventh batch
+      doc: option value may be separate for valid reasons
+      The twelfth batch
+      CodingGuidelines: a handful of error message guidelines
+      refs: move ref name helpers around
+      refs: drop strbuf_ prefix from helpers
+      t5604: do not expect that HEAD can be a valid tagname
+      tag: "git tag" refuses to use HEAD as a tagname
+      The thirteenth batch
+      The fourteenth batch
+      The fifteenth batch
+      The sixteenth batch
+      Git 2.48-rc0
+
+Justin Tobler (4):
+      bundle: add bundle verification options type
+      bundle: support fsck message configuration
+      fetch-pack: split out fsck config parsing
+      transport: propagate fsck configuration during bundle fetch
+
+Kai Koponen (1):
+      doc: mention rev-list --ancestry-path restrictions
+
+Karthik Nayak (22):
+      clang-format: re-adjust line break penalties
+      clang-format: align consecutive macro definitions
+      CodingGuidelines: discourage arbitrary suffixes in function names
+      refs: don't invoke reference-transaction hook for reflogs
+      builtin: pass repository to sub commands
+      packfile: add repository to struct `packed_git`
+      packfile: use `repository` from `packed_git` directly
+      packfile: pass `repository` to static function in the file
+      packfile: pass down repository to `odb_pack_name`
+      packfile: pass down repository to `has_object[_kept]_pack`
+      packfile: pass down repository to `for_each_packed_object`
+      config: make `delta_base_cache_limit` a non-global variable
+      config: make `packed_git_(limit|window_size)` non-global variables
+      midx: add repository to `multi_pack_index` struct
+      midx-write: pass down repository to static functions
+      midx-write: use `revs->repo` inside `read_refs_snapshot`
+      write-midx: add repository field to `write_midx_context`
+      midx-write: pass down repository to `write_midx_file[_only]`
+      midx: cleanup internal usage of `the_repository` and `the_hash_algo`
+      midx: pass `repository` to `load_multi_pack_index`
+      midx: pass down `hash_algo` to functions using global variables
+      midx: inline the `MIDX_MIN_SIZE` definition
+
+Kousik Sanagavarapu (1):
+      t4205: fix typo in 'NUL termination with --stat'
+
+Kristoffer Haugsbakk (18):
+      Documentation/git-update-ref.txt: drop “flag”
+      Documentation/git-update-ref.txt: remove safety paragraphs
+      Documentation/git-update-ref.txt: demote symlink to last section
+      Documentation/git-update-ref.txt: remove confusing paragraph
+      Documentation/git-update-ref.txt: discuss symbolic refs
+      Documentation: mutually link update-ref and symbolic-ref
+      SubmittingPatches: tags -> trailers
+      t7001: add failure test which triggers assertion
+      Documentation/glossary: describe "trailer"
+      Documentation/git-bundle.txt: mention full backup example
+      Documentation/git-bundle.txt: remove old `--all` example
+      Documentation/git-bundle.txt: mention --all in spec. refs
+      Documentation/git-bundle.txt: discuss naïve backups
+      sequencer: comment checked-out branch properly
+      sequencer: comment `--reference` subject line properly
+      sequencer: comment commit messages properly
+      Documentation/git-bundle.txt: fix word join typo
+      Documentation/git-update-ref.txt: add missing word
+
+Linus Arver (1):
+      trailer: spread usage of "trailer_block" language
+
+Nicolas Guichard (3):
+      load_branch_decorations: fix memory leak with non-static filters
+      rebase-update-refs: extract load_branch_decorations
+      rebase-merges: try and use branch names as labels
+
+Oswald Buddenhagen (2):
+      git-gui: strip comments and consecutive empty lines from commit messages
+      git-gui: strip commit messages less aggressively
+
+Patrick Steinhardt (193):
+      builtin/annotate: fix leaking args vector
+      read-cache: fix leaking hash context in `do_write_index()`
+      scalar: fix leaking repositories
+      shell: fix leaking strings
+      wt-status: fix leaking buffer with sparse directories
+      submodule: fix leaking submodule entry list
+      builtin/stash: fix leaking `pathspec_from_file`
+      builtin/pack-redundant: fix various memory leaks
+      builtin/clone: fix leaking repo state when cloning with bundle URIs
+      t/helper: fix leaking repository in partial-clone helper
+      builtin/revert: fix leaking `gpg_sign` and `strategy` config
+      diff: improve lifecycle management of diff queues
+      line-log: fix several memory leaks
+      pseudo-merge: fix various memory leaks
+      pseudo-merge: fix leaking strmap keys
+      pack-bitmap-write: fix leaking OID array
+      midx-write: fix leaking buffer
+      revision: fix memory leaks when rewriting parents
+      revision: fix leaking saved parents
+      pack-write: fix return parameter of `write_rev_file_order()`
+      t/helper: fix leaks in proc-receive helper
+      remote: fix leaking push reports
+      builtin/send-pack: fix leaking list of push options
+      reftable/error: introduce out-of-memory error code
+      reftable/basics: merge "publicbasics" into "basics"
+      reftable: introduce `reftable_strdup()`
+      reftable/basics: handle allocation failures in `reftable_calloc()`
+      reftable/basics: handle allocation failures in `parse_names()`
+      reftable/record: handle allocation failures on copy
+      reftable/record: handle allocation failures when decoding records
+      reftable/writer: handle allocation failures in `writer_index_hash()`
+      reftable/writer: handle allocation failures in `reftable_new_writer()`
+      reftable/merged: handle allocation failures in `merged_table_init_iter()`
+      reftable/reader: handle allocation failures for unindexed reader
+      reftable/reader: handle allocation failures in `reader_init_iter()`
+      reftable/stack: handle allocation failures on reload
+      reftable/stack: handle allocation failures in `reftable_new_stack()`
+      reftable/stack: handle allocation failures in `stack_compact_range()`
+      reftable/stack: handle allocation failures in auto compaction
+      reftable/iter: handle allocation failures when creating indexed table iter
+      reftable/blocksource: handle allocation failures
+      reftable/block: handle allocation failures
+      reftable/pq: handle allocation failures when adding entries
+      reftable/tree: handle allocation failures
+      reftable: handle trivial allocation failures
+      reftable: fix calls to free(3P)
+      reftable: introduce `REFTABLE_FREE_AND_NULL()`
+      reftable/basics: ban standard allocator functions
+      reftable/basics: fix segfault when growing `names` array fails
+      t7300: work around platform-specific behaviour with long paths on MinGW
+      ci: create script to set up Git for Windows SDK
+      ci: handle Windows-based CI jobs in GitLab CI
+      gitlab-ci: introduce stages and dependencies
+      gitlab-ci: exercise Git on Windows
+      t/test-lib: fix quoting of TEST_RESULTS_SAN_FILE
+      t/test-lib: wire up NO_ICONV prerequisite
+      t/lib-gitweb: test against the build version of gitweb
+      t/lib-gpg: fix setup of GNUPGHOME in MinGW
+      t1401: make invocation of tar(1) work with Win32-provided one
+      t3404: work around platform-specific behaviour on macOS 10.15
+      t5500, t5601: skip tests which exercise paths with '[::1]' on Cygwin
+      t7300: work around platform-specific behaviour with long paths on MinGW
+      builtin/credential-cache: fix missing parameter for stub function
+      http: fix build error on FreeBSD
+      reftable: stop using `strbuf_addbuf()`
+      reftable: stop using `strbuf_addf()`
+      reftable/basics: provide new `reftable_buf` interface
+      reftable: convert from `strbuf` to `reftable_buf`
+      reftable/blocksource: adapt interface name
+      t/unit-tests: check for `reftable_buf` allocation errors
+      reftable/stack: adapt `format_name()` to handle allocation failures
+      reftable/record: adapt `reftable_record_key()` to handle allocation failures
+      reftable/stack: adapt `stack_filename()` to handle allocation failures
+      reftable: handle trivial `reftable_buf` errors
+      ref-filter: format iteratively with lexicographic refname sorting
+      t/unit-tests: update clar to 206accb
+      Makefile: extract script to generate clar declarations
+      cmake: fix compilation of clar-based unit tests
+      cmake: set up proper dependencies for generated clar headers
+      compat/mingw: share file handles created via `CreateFileW()`
+      compat/mingw: allow deletion of most opened files
+      t6006: fix prereq handling with `test_format ()`
+      builtin/ls-remote: plug leaking server options
+      t/helper: fix leaks in "reach" test tool
+      grep: fix leak in `grep_splice_or()`
+      builtin/grep: fix leak with `--max-count=0`
+      revision: fix leaking bloom filters
+      diff-lib: fix leaking diffopts in `do_diff_cache()`
+      pretty: clear signature check
+      upload-pack: fix leaking URI protocols
+      builtin/commit: fix leaking change data contents
+      trailer: fix leaking trailer values
+      trailer: fix leaking strbufs when formatting trailers
+      builtin/commit: fix leaking cleanup config
+      transport-helper: fix leaking import/export marks
+      builtin/tag: fix leaking key ID on failure to sign
+      combine-diff: fix leaking lost lines
+      dir: release untracked cache data
+      sparse-index: correctly free EWAH contents
+      t/helper: stop re-initialization of `the_repository`
+      t/helper: fix leaking buffer in "dump-untracked-cache"
+      dir: fix leak when parsing "status.showUntrackedFiles"
+      builtin/merge: release output buffer after performing merge
+      list-objects-filter-options: work around reported leak on error
+      compat/mingw: support POSIX semantics for atomic renames
+      t/unit-tests: convert "clar-generate.awk" into a shell script
+      cmake: use SH_EXE to execute clar scripts
+      cmake: use verbatim arguments when invoking clar commands
+      Makefile: let clar header targets depend on their scripts
+      reftable/system: move "dir.h" to its only user
+      reftable: explicitly handle hash format IDs
+      reftable/system: stop depending on "hash.h"
+      reftable/stack: stop using `fsync_component()` directly
+      reftable/system: provide thin wrapper for tempfile subsystem
+      reftable/stack: drop only use of `get_locked_file_path()`
+      reftable/system: provide thin wrapper for lockfile subsystem
+      builtin/gc: provide hint when maintenance hits a stale schedule lock
+      refs: allow passing flags when setting up a transaction
+      refs/files: move logic to commit initial transaction
+      refs: introduce "initial" transaction flag
+      refs/files: support symbolic and root refs in initial transaction
+      refs: use "initial" transaction semantics to migrate refs
+      refs: skip collision checks in initial transactions
+      refs: don't normalize log messages with `REF_SKIP_CREATE_REFLOG`
+      reftable/writer: optimize allocations by using a scratch buffer
+      reftable/block: rename `block_writer::buf` variable
+      reftable/block: optimize allocations by using scratch buffer
+      builtin/blame: fix leaking blame entries with `--incremental`
+      bisect: fix leaking good/bad terms when reading multipe times
+      bisect: fix leaking string in `handle_bad_merge_base()`
+      bisect: fix leaking `current_bad_oid`
+      bisect: fix multiple leaks in `bisect_next_all()`
+      bisect: fix leaking commit list items in `check_merge_base()`
+      bisect: fix various cases where we leak commit list items
+      line-log: fix leak when rewriting commit parents
+      strvec: introduce new `strvec_splice()` function
+      git: refactor alias handling to use a `struct strvec`
+      git: refactor builtin handling to use a `struct strvec`
+      split-index: fix memory leak in `move_cache_to_base_index()`
+      builtin/sparse-checkout: fix leaking sanitized patterns
+      help: refactor to not use globals for reading config
+      help: fix leaking `struct cmdnames`
+      help: fix leaking return value from `help_unknown_cmd()`
+      builtin/help: fix leaks in `check_git_cmd()`
+      builtin/init-db: fix leaking directory paths
+      builtin/branch: fix leaking sorting options
+      t/helper: fix leaking commit graph in "read-graph" subcommand
+      global: drop `UNLEAK()` annotation
+      git-compat-util: drop now-unused `UNLEAK()` macro
+      t5601: work around leak sanitizer issue
+      t: mark some tests as leak free
+      t: remove unneeded !SANITIZE_LEAK prerequisites
+      test-lib: unconditionally enable leak checking
+      t: remove TEST_PASSES_SANITIZE_LEAK annotations
+      t7900: fix host-dependent behaviour when testing git-maintenance(1)
+      refs: adapt `initial_transaction` flag to be unsigned
+      reftable: rename scratch buffer
+      bisect: address Coverity warning about potential double free
+      refs/reftable: encapsulate reftable stack
+      refs/reftable: handle reloading stacks in the reftable backend
+      reftable/stack: add accessor for the hash ID
+      refs/reftable: figure out hash via `reftable_stack`
+      refs/reftable: read references via `struct reftable_backend`
+      refs/reftable: refactor reading symbolic refs to use reftable backend
+      refs/reftable: refactor reflog expiry to use reftable backend
+      reftable/stack: add mechanism to notify callers on reload
+      reftable/merged: drain priority queue on reseek
+      refs/reftable: reuse iterators when reading refs
+      Makefile: use common template for GIT-BUILD-OPTIONS
+      Makefile: consistently use @PLACEHOLDER@ to substitute
+      Makefile: refactor GIT-VERSION-GEN to be reusable
+      Makefile: propagate Git version via generated header
+      Makefile: generate "git.rc" via GIT-VERSION-GEN
+      Makefile: generate doc versions via GIT-VERSION-GEN
+      Makefile: consistently use PERL_PATH
+      Makefile: extract script to massage Perl scripts
+      Makefile: use "generate-perl.sh" to massage Perl library
+      Makefile: extract script to massage Shell scripts
+      Makefile: extract script to massage Python scripts
+      Makefile: extract script to generate gitweb.cgi
+      Makefile: extract script to generate gitweb.js
+      Makefile: refactor generators to be PWD-independent
+      Makefile: allow "bin-wrappers/" directory to exist
+      Makefile: write absolute program path into bin-wrappers
+      Makefile: simplify building of templates
+      Documentation: allow sourcing generated includes from separate dir
+      Documentation: teach "cmd-list.perl" about out-of-tree builds
+      Documentation: extract script to generate a list of mergetools
+      t: better support for out-of-tree builds
+      t: allow overriding build dir
+      Documentation: add comparison of build systems
+      Introduce support for the Meson build system
+      object-name: fix reversed ordering with ":/<text>" revisions
+
+Philippe Blain (6):
+      Makefile: fix dependency for $(UNIT_TEST_DIR)/clar/clar.o
+      completion: complete '--tool-help' in 'git mergetool'
+      git-mergetool--lib.sh: use TOOL_MODE when erroring about unknown tool
+      git-mergetool--lib.sh: add error message if 'setup_user_tool' fails
+      git-mergetool--lib.sh: add error message for unknown tool variant
+      git-difftool--helper.sh: exit upon initialize_merge_tool errors
+
+Piotr Szlazak (1):
+      doc: document how uploadpack.allowAnySHA1InWant impact other allow options
+
+Ramsay Jones (1):
+      credential-cache: treat ECONNABORTED like ECONNRESET
+
+René Scharfe (1):
+      grep: disable lookahead on error
+
+Rubén Justo (1):
+      strvec: `strvec_splice()` to a statically initialized vector
+
+Seyi Kuforiji (2):
+      t7011: ensure no whitespace after redirect
+      t9101: ensure no whitespace after redirect
+
+Simon Marchi (1):
+      builtin/difftool: intialize some hashmap variables
+
+Sven Strickroth (1):
+      global: Fix duplicate word typos
+
+Sören Krecker (1):
+      mingw.c: Fix complier warnings for a 64 bit msvc
+
+Taylor Blau (11):
+      The second batch
+      The third batch
+      The third batch
+      The fifth batch
+      The sixth batch
+      The seventh batch
+      t5332-multi-pack-reuse.sh: demonstrate duplicate packing failure
+      pack-objects: only perform verbatim reuse on the preferred pack
+      pack-bitmap.c: typofix in `find_boundary_objects()`
+      t/perf: use 'test_file_size' in more places
+      packfile.c: remove unnecessary prepare_packed_git() call
+
+Tobias Boesch (1):
+      git gui: add directly calling merge tool from configuration
+
+Usman Akinyemi (5):
+      t3404: avoid losing exit status with focus on `git show` and `git cat-file`
+      t3404: replace test with test_line_count()
+      daemon: replace atoi() with strtoul_ui() and strtol_i()
+      merge: replace atoi() with strtol_i() for marker size validation
+      imap: replace atoi() with strtol_i() for UIDVALIDITY and UIDNEXT parsing
+
+Wolfgang Müller (1):
+      builtin/shortlog: explicitly set hash algo when there is no repo
+
+Xing Xin (5):
+      transport: introduce parse_transport_option() method
+      remote: introduce remote.<name>.serverOption configuration
+      transport.c::handshake: make use of server options from remote
+      fetch: respect --server-option when fetching multiple remotes
+      ls-remote: leakfix for not clearing server_options
+
+brian m. carlson (18):
+      git-curl-compat: remove check for curl 7.21.5
+      git-curl-compat: remove check for curl 7.25.0
+      git-curl-compat: remove check for curl 7.34.0
+      git-curl-compat: remove check for curl 7.39.0
+      git-curl-compat: remove check for curl 7.43.0
+      git-curl-compat: remove check for curl 7.44.0
+      git-curl-compat: remove check for curl 7.52.0
+      git-curl-compat: remove check for curl 7.53.0
+      git-curl-compat: remove check for curl 7.56.0
+      INSTALL: document requirement for libcurl 7.61.0
+      Require Perl 5.26.0
+      gitweb: make use of s///r
+      gitlab-ci: switch from Ubuntu 16.04 to 20.04
+      ci: remove clause for Ubuntu 16.04
+      Add additional CI jobs to avoid accidental breakage
+      Allow cloning from repositories owned by another user
+      index-pack: rename struct thread_local
+      reflog: rename unreachable
+
+shejialuo (10):
+      ref: initialize "fsck_ref_report" with zero
+      ref: check the full refname instead of basename
+      ref: initialize ref name outside of check functions
+      ref: support multiple worktrees check for refs
+      ref: port git-fsck(1) regular refs check for files backend
+      ref: add more strict checks for regular refs
+      ref: add basic symref content check for files backend
+      ref: check whether the target of the symref is a ref
+      ref: add symlink ref content check for files backend
+      ref-cache: fix invalid free operation in `free_ref_entry`
+
+
+Version v2.47.2; changes since v2.47.1:
+---------------------------------------
+
+Johannes Schindelin (12):
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+      Git 2.41.3
+      Git 2.42.4
+      Git 2.43.6
+      Git 2.44.3
+      Git 2.45.3
+      Git 2.46.3
+      Git 2.47.2
+
+Junio C Hamano (2):
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+
+Patrick Steinhardt (1):
+      t7300: work around platform-specific behaviour with long paths on MinGW
+
+
 Version v2.47.1; changes since v2.47.0:
 ---------------------------------------
 

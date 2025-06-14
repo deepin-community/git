@@ -1,4 +1,5 @@
 #define USE_THE_REPOSITORY_VARIABLE
+#define DISABLE_SIGN_COMPARE_WARNINGS
 
 #include "git-compat-util.h"
 #include "config.h"
@@ -182,7 +183,7 @@ static void send_strbuf(struct strbuf *hdr,
 static void send_local_file(struct strbuf *hdr, const char *the_type,
 				const char *name)
 {
-	char *p = git_pathdup("%s", name);
+	char *p = repo_git_path(the_repository, "%s", name);
 	size_t buf_alloc = 8192;
 	char *buf = xmalloc(buf_alloc);
 	int fd;

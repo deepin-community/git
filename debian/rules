@@ -128,7 +128,7 @@ override_dh_auto_install-indep:
 	  2>/dev/null
 	test -z '$(DOCS)' || \
 	  DESTDIR='$(TMP)' $(MAKE) -Ccontrib/subtree install-doc $(OPTS)
-	install -m 0644 contrib/subtree/git-subtree.txt '$(TMP)'/html
+	install -m 0644 contrib/subtree/git-subtree.adoc '$(TMP)'/html
 	# RelNotes are shipped in git
 	rm -rf '$(TMP)'/html/RelNotes
 	# don't include git-p4 man page
@@ -147,9 +147,6 @@ override_dh_install-indep:
 
 override_dh_installdocs-arch:
 	dh_installdocs --arch -X.gitignore
-	# These licenses are replaced with symlinks in git.links.
-	diff -q '$(GIT)'/usr/share/doc/git/contrib/persistent-https/LICENSE /usr/share/common-licenses/Apache-2.0
-	diff -bq '$(GIT)'/usr/share/doc/git/contrib/subtree/COPYING /usr/share/common-licenses/GPL-2
 	rm -rf '$(GIT)'/usr/share/doc/git/contrib/completion
 	rm -rf '$(GIT)'/usr/share/doc/git/contrib/emacs
 	rm -rf '$(GIT)'/usr/share/doc/git/contrib/hooks
@@ -167,4 +164,4 @@ override_dh_installchangelogs:
 	dh_installchangelogs debian/changelog.upstream
 
 override_dh_compress:
-	dh_compress -X.txt -Xcontrib
+	dh_compress -X.adoc -Xcontrib
