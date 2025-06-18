@@ -1,3 +1,15 @@
+git (1:2.50.0-1) unstable; urgency=medium
+
+  * new upstream release (see RelNotes/2.50.0.adoc).
+    * in particular, includes the rest of the parse-options fix
+      from upstream, avoiding size mismatches that on big-endian
+      64-bit platforms was causing commands like "git grep -A" to
+      write their argument to the 32 bits after the variable that is
+      used (thx Sebastian Andrzej Siewior; closes: #1106786).
+  * debian/patches/*: remove; applied upstream.
+
+ -- Jonathan Nieder <jrnieder@gmail.com>  Tue, 17 Jun 2025 03:50:38 +0200
+
 git (1:2.49.0-2) unstable; urgency=medium
 
   * debian/rules: remove overly strict check for license file
