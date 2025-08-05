@@ -1,3 +1,20 @@
+git (1:2.50.1-0.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * New upstream release.
+    - CVE-2025-27613: gitk: file creation/truncation after cloning
+      untrusted repository
+    - CVE-2025-27614: gitk: user can be tricked into running any
+      script after cloning untrusted repository
+    - CVE-2025-46835: git-gui: file creation/overwriting after
+      cloning untrusted repository
+    - CVE-2025-48384: script execution after cloning untrusted
+      repository
+    - CVE-2025-48385: protocol injection when fetching
+    - Closes: #1108983
+
+ -- Adrian Bunk <bunk@debian.org>  Tue, 29 Jul 2025 20:54:28 +0300
+
 git (1:2.50.0-1) unstable; urgency=medium
 
   * new upstream release (see RelNotes/2.50.0.adoc).
