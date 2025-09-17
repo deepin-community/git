@@ -6,7 +6,7 @@ Files: *
 Copyright: © 2005-2025, Linus Torvalds and others.
 License: GPL-2
 
-Files: reftable/* t/unit-tests/t-reftable-*.c
+Files: reftable/* t/unit-tests/u-reftable-*.c
 Copyright: © 2020 Google LLC
 License: BSD-3-clause
  Redistribution and use in source and binary forms, with or without
@@ -193,33 +193,6 @@ Files: compat/obstack.c compat/obstack.h
 Copyright: © 1988-1994, 1996-2005, 2009, Free Software Foundation, Inc.
 Name: Object stack macros.
 License: LGPL-2.1+
-
-Files: contrib/persistent-https/*
-Copyright: © 2012, Google Inc.
-License: Apache-2.0
-
-Files: contrib/credential/gnome-keyring/git-credential-gnome-keyring.c
-Copyright: © 2011, John Szakmeister <john@szakmeister.net>
-           © 2012, Philipp A. Hartmann <pah@qo.cx>
-License: GPL-2+
-
-Files: contrib/mw-to-git/git-*.perl contrib/mw-to-git/t/t*
-Copyright: © 2011
-		Jérémie Nikaes <jeremie.nikaes@ensimag.imag.fr>
-		Arnaud Lacurie <arnaud.lacurie@ensimag.imag.fr>
-		Claire Fousse <claire.fousse@ensimag.imag.fr>
-		David Amouyal <david.amouyal@ensimag.imag.fr>
-		Matthieu Moy <matthieu.moy@grenoble-inp.fr>
-           © 2012
-		Charles Roussel <charles.roussel@ensimag.imag.fr>
-		Simon Cathebras <simon.cathebras@ensimag.imag.fr>
-		Julien Khayat <julien.khayat@ensimag.imag.fr>
-		Guillaume Sasdy <guillaume.sasdy@ensimag.imag.fr>
-		Simon Perrat <simon.perrat@ensimag.imag.fr>
-	   © 2013
-		Benoit Person <benoit.person@ensimag.imag.fr>
-		Celestin Matte <celestin.matte@ensimag.imag.fr>
-License: GPL-2+
 
 Files: debian/*
 Copyright: © 2005, Sebastian Kuzminsky <seb@highlab.com>

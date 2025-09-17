@@ -33,7 +33,7 @@ Pre-Depends: ${misc:Pre-Depends}
 Recommends: ca-certificates, patch, less, ssh-client
 Suggests: gettext-base,
  git-doc, git-email, git-gui, gitk, gitweb,
- git-cvs, git-mediawiki, git-svn
+ git-cvs, git-svn
 Breaks: bash-completion (<< 1:1.90-1),
  dgit (<< 5.1~),
  git-buildpackage (<< 0.6.5),
@@ -139,27 +139,6 @@ Description: fast, scalable, distributed revision control system (svn interopera
  This package provides tools for interoperating with Subversion repositories,
  and importing SVN development history.
 
-Package: git-mediawiki
-Architecture: all
-Multi-Arch: foreign
-Depends: ${misc:Depends}, git (>> ${source:Upstream-Version}), git (<< ${source:Upstream-Version}-.),
- libmediawiki-api-perl (>= 0.39), liblwp-protocol-https-perl, libdatetime-format-iso8601-perl
-Suggests: mediawiki
-Description: fast, scalable, distributed revision control system (MediaWiki remote helper)
- Git is popular version control system designed to handle very large
- projects with speed and efficiency; it is used for many high profile
- open source projects, most notably the Linux kernel.
- .
- Git falls in the category of distributed source code management tools.
- Every Git working directory is a full-fledged repository with full
- revision tracking capabilities, not dependent on network access or a
- central server.
- .
- This package provides the mediawiki remote helper, which allows Git to
- read from and write to a wiki such as Wikipedia as though it were a
- remote Git repository, and a 'git mw' command that can show a preview
- of how wiki markup will be rendered before pushing.
-
 Package: git-email
 Architecture: all
 Multi-Arch: foreign
@@ -256,7 +235,7 @@ Package: git-all
 Architecture: all
 Multi-Arch: foreign
 Depends: ${misc:Depends}, git (>> ${source:Upstream-Version}), git (<< ${source:Upstream-Version}-.),
- git-doc, git-cvs, git-mediawiki, git-svn,
+ git-doc, git-cvs, git-svn,
  git-email, git-gui, gitk, gitweb
 Description: fast, scalable, distributed revision control system (all subpackages)
  Git is popular version control system designed to handle very large
