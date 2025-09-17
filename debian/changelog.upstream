@@ -1,3 +1,773 @@
+Version v2.51.0; changes since v2.51.0-rc2:
+-------------------------------------------
+
+Alexander Shopov (1):
+      l10n: bg.po: Updated Bulgarian translation (5856t)
+
+Arkadii Yakovets (1):
+      l10n: uk: add 2.51 translation
+
+Bagas Sanjaya (1):
+      l10n: po-id for 2.51
+
+Emir SARI (1):
+      l10n: tr: Update Turkish translations for 2.51.0
+
+Jean-Noël Avila (1):
+      l10n: fr translation update for v2.51.0
+
+Johannes Schindelin (1):
+      cmake: accommodate for `UNIT_TEST_SOURCES`
+
+Junio C Hamano (1):
+      Git 2.51
+
+Mikel Forcada (1):
+      l10n: Update Catalan Translation for Git 2.51-rc2
+
+Peter Krefting (1):
+      l10n: sv.po: Update Swedish translation
+
+Teng Long (1):
+      l10n: zh_CN: updated translation for 2.51
+
+Vũ Tiến Hưng (1):
+      l10n: Updated translation for vi-2.51
+
+Yi-Jyun Pan (1):
+      l10n: zh_TW: Git 2.51
+
+
+Version v2.51.0-rc2; changes since v2.51.0-rc1:
+-----------------------------------------------
+
+Junio C Hamano (2):
+      A few hotfixes before -rc2
+      Git 2.51-rc2
+
+René Scharfe (2):
+      for-each-ref: call --start-after argument "marker"
+      merge: don't document non-existing --compact-summary argument
+
+
+Version v2.51.0-rc1; changes since v2.51.0-rc0:
+-----------------------------------------------
+
+Alexander Shopov (4):
+      gitk i18n: Update Bulgarian translation (322t)
+      gitk i18n: Remove the locations within the Bulgarian translation
+      git-gui i18n: Update Bulgarian translation (557t)
+      git-gui i18n: Remove the locations within the Bulgarian translation
+
+Carlo Marcelo Arenas Belón (5):
+      git-gui: remove uname_O in Makefile
+      git-gui: fix dependency of GITGUI_MAIN on generator
+      git-gui: retire Git Gui.app
+      git-gui: honor TCLTK_PATH in git-gui--askpass
+      git-gui: ensure own version of git-gui--askpass is used
+
+Denton Liu (1):
+      t/unit-tests/clar: fix -Wmaybe-uninitialized with -Og
+
+Ilya Grigoriev (1):
+      gitk: Mention globs in description of preference to hide custom refs
+
+Jeff King (2):
+      revert: initialize const value
+      remote: bail early from set_head() if missing remote name
+
+Johannes Sixt (1):
+      gitk: avoid duplicated upstream refs
+
+Junio C Hamano (4):
+      fixup! submodule: prevent overwriting .gitmodules on path reuse
+      fixup! submodule: skip redundant active entries when pattern covers path
+      A bit more after -rc0
+      Git 2.51-rc1
+
+Justin Tobler (1):
+      archive: flush deflate stream until Z_STREAM_END
+
+K Jayatheerth (2):
+      submodule: prevent overwriting .gitmodules on path reuse
+      submodule: skip redundant active entries when pattern covers path
+
+Mark Levedahl (21):
+      gitk: set config dialog color swatches in one place
+      gitk: restore ui colors after cancelling config dialog
+      gitk: update scrolling for TclTk 8.7+ / TIP 474
+      gitk: switch to -translation binary
+      gitk: Tcl9 doesn't expand ~, use $env(HOME)
+      gitk: use -profile tcl8 for file input with Tcl 9
+      gitk: use -profile tcl8 on encoding conversions
+      gitk: allow Tcl/Tk 9.0+
+      git-gui: do not add directories to PATH on Windows
+      git-gui: let nice work on Windows
+      git-gui: Windows tk_getSaveFile is not useful for shortcuts
+      git-gui: use /cmd/git-gui.exe for shortcut
+      git-gui: assure -eofchar {} on all channels
+      git-gui: translation binary defines iso8859-1
+      git-gui: replace encoding binary with iso8859-1
+      git-gui: do not mix -translation binary and -encoding
+      git-gui: remove EOL translation for gets
+      git-gui: themed.tcl: use full namespace for color
+      git-gui: use -profile tcl8 for file input with Tcl 9
+      git-gui: use -profile tcl8 on encoding conversions
+      git-gui: Allow Tcl 9.0
+
+Michael Rappazzo (1):
+      gitk: filter invisible upstream refs from reference list
+
+Orgad Shaneh (1):
+      git-gui: strip the commit message after running commit-msg hook
+
+Ori Avtalion (1):
+      gitk: Add user preference to hide specific references
+
+Patrick Steinhardt (17):
+      object-file: fix -Wsign-compare warnings
+      object-file: stop using `the_hash_algo`
+      object-file: get rid of `the_repository` in `has_loose_object()`
+      object-file: inline `check_and_freshen()` functions
+      object-file: get rid of `the_repository` when freshening objects
+      object-file: get rid of `the_repository` in `loose_object_info()`
+      object-file: get rid of `the_repository` in `finalize_object_file()`
+      loose: write loose objects map via their source
+      odb: introduce `odb_write_object()`
+      object-file: get rid of `the_repository` when writing objects
+      object-file: inline `for_each_loose_file_in_objdir_buf()`
+      object-file: remove declaration for `for_each_file_in_obj_subdir()`
+      object-file: get rid of `the_repository` in loose object iterators
+      object-file: get rid of `the_repository` in `read_loose_object()`
+      object-file: get rid of `the_repository` in `force_object_loose()`
+      object-file: get rid of `the_repository` in index-related functions
+      Documentation/RelNotes/2.51.0: improve wording for a couple entries
+
+René Scharfe (1):
+      git: show alias info only with lone -h
+
+
+Version v2.51.0-rc0; changes since v2.50.1:
+-------------------------------------------
+
+Aditya Garg (22):
+      docs: add credential helper for yahoo and link Google's sendgmail tool
+      docs: improve formatting in git-send-email documentation
+      docs: remove credential helper links for emails from gitcredentials
+      docs: make the purpose of using app password for Gmail more clear in send-email
+      send-email: fix bug resulting in broken threads if a message is edited
+      send-email: show the new message id assigned by outlook in the logs
+      imap-send: fix bug causing cfg->folder being set to NULL
+      imap-send: fix memory leak in case auth_cram_md5 fails
+      imap-send: gracefully fail if CRAM-MD5 authentication is requested without OpenSSL
+      imap-send: add support for OAuth2.0 authentication
+      imap-send: add PLAIN authentication method to OpenSSL
+      imap-send: enable specifying the folder using the command line
+      imap-send: add ability to list the available folders
+      imap-send: display port alongwith host when git credential is invoked
+      imap-send: display the destination mailbox when sending a message
+      imap-send: fix minor mistakes in the logs
+      docs: link OpenSSL's verify(1) manual page to know about -CAfile and -CApath options
+      docs: add outlookidfix config option to sendemail documentation
+      docs: add an OAuth2.0 credential helper for AOL accounts
+      docs: add a paragraph explaining the `sendmailCmd` option of sendemail
+      docs: mention possible options for Proton Mail users
+      docs: explain how to use `git imap-send --list` command to get a list of available folders
+
+Alexander Shopov (1):
+      git-gui i18n: Updated Bulgarian translation (578t)
+
+Ayush Chandekar (6):
+      environment: remove the global variable 'core_preload_index'
+      preload-index: stop depending on 'the_repository'
+      repository: move 'repository_format_precious_objects' to repo scope
+      builtin/prune: stop depending on 'the_repository'
+      commit: avoid scanning trailing comments when 'core.commentChar' is "auto"
+      config: set comment_line_str to "#" when core.commentChar=auto
+
+Brad Smith (1):
+      config.mak.uname: update settings for Solaris 10 and 11
+
+Brett A C Sheffield (1):
+      gitremote-helpers.adoc: fix formatting
+
+Carlo Marcelo Arenas Belón (9):
+      daemon: remove unnecesary restriction for listener fd
+      daemon: correctly handle soft accept() errors in service_loop
+      ci: update FreeBSD image to 14.3
+      config.mak.uname: set NO_MEMMEM only for functional version
+      build: retire NO_UINTMAX_T
+      builtin/gc: correct total_ram calculation with HAVE_BSD_SYSCTL
+      compat/mingw: allow sigaction(SIGCHLD)
+      daemon: use sigaction() to install child_handler()
+      meson: work around broken system PCRE2 dependency in macOS
+
+Christian Couder (2):
+      fast-(import|export): improve on commit signature output format
+      t9350: redirect input to only fast-import
+
+Collin Funk (1):
+      CodingGuidelines: document formatting of similar config variables.
+
+Derrick Stolee (13):
+      pack-objects: extract should_attempt_deltas()
+      pack-objects: add --path-walk option
+      pack-objects: update usage to match docs
+      p5313: add performance tests for --path-walk
+      pack-objects: introduce GIT_TEST_PACK_PATH_WALK
+      t5538: add tests to confirm deltas in shallow pushes
+      repack: add --path-walk option
+      pack-objects: enable --path-walk via config
+      scalar: enable path-walk during push via config
+      pack-objects: refactor path-walk delta phase
+      pack-objects: thread the path-based compression
+      path-walk: add new 'edge_aggressive' option
+      pack-objects: allow --shallow and --path-walk
+
+Han Young (2):
+      read-cache: report lock error when refreshing index
+      blame: remove parameter detailed in get_commit_info()
+
+Hoyoung Lee (1):
+      t/helper/test-truncate: close file descriptor after truncation
+
+Jacob Keller (12):
+      pathspec: add match_leading_pathspec variant
+      pathspec: add flag to indicate operation without repository
+      diff --no-index: support limiting by pathspec
+      remote: remove branch->merge_name and fix branch_release()
+      remote: fix tear down of struct remote
+      dir: move starts_with_dot(_dot)_slash to dir.h
+      remote: remove the_repository from some functions
+      submodule--helper: improve logic for fallback remote name
+      submodule: move get_default_remote_submodule()
+      submodule: look up remotes by URL first
+      send-pack: clean up extra_have oid array
+      reflog: close leak of reflog expire entry
+
+Jakub Ječmínek (1):
+      doc: improve formatting in branch section
+
+Jan Mazur (1):
+      bundle-uri: send debug output to given FILE * stream
+
+Jean-Noël Avila (9):
+      doc: convert git-log to new documentation format
+      doc: git-log convert rev-list-description to new doc format
+      doc: git-log: convert line range options to new doc format
+      doc: git-log: convert line range format to new doc format
+      doc: git-log: convert rev list options to new doc format
+      doc: git-log: convert pretty options to new doc format
+      doc: git-log: convert pretty formats to new doc format
+      doc: git-log: convert diff options to new doc format
+      doc: git-log: convert log config to new doc format
+
+Jeff King (9):
+      t7422: replace confusing printf with echo
+      test-lib: teach test_seq the -f option
+      setup_revisions(): turn on diffs for all-negative diff filter
+      remote: detect collisions in remote names
+      revision: drop early output option
+      test-delta: handle errors with die()
+      test-delta: use strbufs to hold input files
+      test-delta: close output descriptor after use
+      t7510: use $PWD instead of $(pwd) inside PATH
+
+Jinyao Guo (1):
+      mailinfo.c: fix memory leak in function handle_content_type()
+
+Johannes Schindelin (3):
+      mingw: drop Windows 7-specific work-around
+      mingw_rename: support ReFS on Windows 2022
+      mingw: support Windows Server 2016 again
+
+Johannes Sixt (4):
+      git-gui: do not end the commit message with an empty line
+      gitk: choosefont - remove a stray debugging line
+      gitk: remove header of now empty section "General options"
+      interactive: do strip trailing CRLF from input
+
+Jonas Brandstötter (2):
+      gpg-interface: expand gpg.program as a path
+      t7510: add test cases for non-absolute gpg program
+
+Jouke Witteveen (1):
+      doc: update references to renamed AsciiDoc files
+
+Junio C Hamano (37):
+      you-still-use-that??: help deprecating commands for removal
+      doc: prepare for a world without whatchanged
+      tests: prepare for a world without whatchanged
+      whatchanged: require --i-still-use-this
+      whatchanged: remove when built with WITH_BREAKING_CHANGES
+      whatschanged: list it in BreakingChanges document
+      CodingGuidelines: let BSS do its job
+      merge/pull: add the "--compact-summary" option
+      merge/pull: extend merge.stat configuration variable to cover --compact-summary
+      Start 2.51 cycle, the first batch
+      diff-no-index: do not reference .d_type member of struct dirent
+      The second batch
+      cocci: matching (multiple) identifiers
+      coccicheck: fail "make" when it fails
+      The third batch
+      The fourth batch
+      The fifth batch
+      send-pack: clean-up even when taking an early exit
+      The sixth batch
+      The seventh batch
+      The eighth batch
+      The ninth batch
+      The tenth batch
+      The eleventh batch
+      ci: allow github-actions print test failures again
+      The twelfth batch
+      rev-list: make "struct rev_list_info" static to the only user
+      rev-list: update a NEEDSWORK comment
+      The thirteenth batch
+      CodingGuidelines: document test balloons in flight
+      The fourteenth batch
+      The fifteenth batch
+      test-hashmap: document why it is no longer used but still there
+      CodingGuidelines: clarify that S_release() does not reinitialize
+      The sixteenth batch
+      The seventeenth batch, just before -rc0
+      Git 2.51-rc0
+
+Justin Tobler (1):
+      builtin: unmark git-switch and git-restore as experimental
+
+Jörg Thalheim (2):
+      imap-send: fix confusing 'store' terminology in error message
+      imap-send: improve error messages with configuration hints
+
+K Jayatheerth (1):
+      stash: fix incorrect branch name in stash message
+
+Karthik Nayak (20):
+      refs: add function to translate errors to strings
+      fetch: use batched reference updates
+      send-pack: fix memory leak around duplicate refs
+      receive-pack: use batched reference updates
+      refs/files: skip updates with errors in batched updates
+      receive-pack: handle reference deletions separately
+      clang-format: set 'ColumnLimit' to 0
+      clang-format: add 'RemoveBracesLLVM' to the main config
+      meson: add rule to run 'git clang-format'
+      refs: expose `ref_iterator` via 'refs.h'
+      ref-cache: remove unused function 'find_ref_entry()'
+      refs: selectively set prefix in the seek functions
+      ref-filter: remove unnecessary else clause
+      for-each-ref: introduce a '--start-after' option
+      ref-cache: set prefix_state when seeking
+      ref-cache: use 'size_t' instead of int for length
+      for-each-ref: fix documentation argument ordering
+      for-each-ref: reword the documentation for '--start-after'
+      t6302: add test combining '--start-after' with '--exclude'
+      ref-filter: use REF_ITERATOR_SEEK_SET_PREFIX instead of '1'
+
+Kristoffer Haugsbakk (6):
+      config: document --[no-]show-names
+      config: use --value=<pattern> consistently
+      config: document --[no-]value
+      config: use --value instead of value-pattern
+      config: mention --url in the synopsis
+      doc: fast-import: contextualize the hardware cost
+
+Kyle Lippincott (1):
+      test-lib: respect GIT_TEST_INSTALLED when querying default hash
+
+Leon Michalak (4):
+      t: use test_grep in t3701 and t4055
+      t: use test_config in t4055
+      add-patch: respect diff.context configuration
+      add-patch: add diff.context command line overrides
+
+Lidong Yan (17):
+      sequencer: replace error() with BUG() in update_squash_messages ()
+      BUG(): remove leading underscore of the format string
+      builtin/fetch-pack: cleanup before return error
+      commit-graph: fix start_delayed_progress() leak
+      repo_logmsg_reencode: fix memory leak when use repo_logmsg_reencode ()
+      builtin/submodule--helper: fix leak when remote_submodule_branch() failed
+      pack-bitmap: remove checks before bitmap_free
+      revision: fix memory leak in prepare_show_merge()
+      git.c: remove the_repository dependence in run_builtin()
+      pack-bitmap: reword comments in test_bitmap_commits()
+      pack-bitmap: add load corrupt bitmap test
+      bloom: add test helper to return murmur3 hash
+      bloom: rename function operates on bloom_key
+      bloom: replace struct bloom_key * with struct bloom_keyvec
+      revision: make helper for pathspec to bloom keyvec
+      bloom: optimize multiple pathspec items in revision
+      pull: add pull.autoStash config option
+
+Lucas Seiki Oshiro (2):
+      MyFirstContribution: use struct repository in examples
+      MyFirstContribution: add walken.c to meson.build
+
+Mark Levedahl (37):
+      gitk: require git >= 2.20
+      gitk: remove code targeting git <= 1.7.2
+      gitk: Make TclTk 8.6 the minimum, allow 8.7
+      gitk: remove implementations for Tcl/Tk < 8.6
+      gitk: use $config_variables as list for save/restore
+      gitk: always use themed Tk (ttk)
+      gitk: replace ${NS} with ttk
+      gitk: remove non-ttk support code
+      gitk: separate x11 / win32 / aqua Mouse bindings
+      gitk: wheel scrolling multiplier preference
+      gitk: mousewheel scrolling functions for Tk 8.6
+      gitk: update win32 scrolling for Tk 8.6 / TIP 171
+      gitk: update x11 scrolling for TclTk 8.6 / TIP 171
+      gitk: update aqua scrolling for TclTk 8.6 / TIP171
+      gitk: allow horizontal commit-graph scrolling
+      git-gui: require git >= 2.36
+      git-gui: Make TclTk 8.6 the minimum, allow 8.7
+      git-gui: git ls-files knows --exclude-standard
+      git-gui: git-diff-index always knows submodules
+      git-gui: use git-branch --show-current
+      git-gui: git rev-parse knows show_toplevel
+      git-gui: git-blame understands -w and textconv
+      git-gui: git-diff knows submodules and textconv
+      git-gui: git merge understands --strategy=recursive
+      git-gui: git-remote is always available
+      git-gui: use git_init to create new repository dir
+      git-gui: remove unused git-version
+      git-gui: remove unreachable Tk 8.4 code
+      git-gui: remove redundant check for Tk >= 8.5
+      git-gui: always use themed widgets from ttk
+      git-gui: remove ${NS} indirection for ttk
+      git-gui: remove non-ttk code
+      git-gui: use git-clone
+      git-gui: default to full copy for linked worktrees
+      git-gui: use dashless 'git cmd' form for read/write
+      git-gui: remove procs gitexec and _git_cmd
+      git-gui: eliminate _search_exe
+
+Martin Storsjö (1):
+      meson: tolerate errors from git ls-files --deduplicate
+
+Martin Ågren (1):
+      diff-generate-patch.adoc: drop spurious backticks
+
+Matthias Aßhauer (1):
+      mingw_open_existing: handle directories better
+
+Maxim Cournoyer (3):
+      contrib: use a more portable shebang for git-credential-netrc
+      contrib: warn for invalid netrc file ports in git-credential-netrc
+      contrib: better support symbolic port names in git-credential-netrc
+
+Michael Rappazzo (3):
+      gitk: sort by ref type on the 'tags and heads' view
+      gitk: make 'sort-refs-by-type' optional and persistent
+      gitk: separate upstream refs when using the sort-by-type option
+
+Patrick Steinhardt (94):
+      contrib: remove "remotes2config.sh"
+      contrib: remove "examples" directory
+      contrib: remove remote-helper stubs
+      contrib: remove "thunderbird-patch-inline"
+      contrib: remove "hooks" directory
+      contrib: remove "mw-to-git"
+      contrib: remove "persistent-https" remote helper
+      contrib: remove "git-resurrect.sh"
+      contrib: remove "emacs" directory
+      contrib: remove "git-new-workdir"
+      contrib: remove some scripts in "stats" directory
+      t: stop announcing prereqs
+      t: silence output from `test_create_repo()`
+      t9822: use prereq to check for ISO-8859-1 support
+      t983*: use prereq to check for Python-specific git-p4(1) support
+      t/test-lib: don't print shell traces to stdout
+      t/test-lib: fix TAP format for BASH_XTRACEFD warning
+      t7815: fix unexpectedly passing test on macOS
+      test-lib: fail on unexpectedly passing tests
+      meson: introduce kwargs variable for tests
+      meson: parse TAP output generated by our tests
+      builtin/gc: use designated field initializers for maintenance tasks
+      builtin/gc: drop redundant local variable
+      builtin/maintenance: centralize configuration of explicit tasks
+      builtin/maintenance: mark "--task=" and "--schedule=" as incompatible
+      builtin/maintenance: stop modifying global array of tasks
+      builtin/maintenance: extract function to run tasks
+      builtin/maintenance: fix typedef for function pointers
+      builtin/maintenance: split into foreground and background tasks
+      builtin/maintenance: fix locking race with refs and reflogs tasks
+      usage: allow dying without writing an error message
+      builtin/gc: avoid global state in `gc_before_repack()`
+      builtin/maintenance: fix locking race when handling "gc" task
+      object-store: rename `raw_object_store` to `object_database`
+      object-store: rename `object_directory` to `odb_source`
+      object-store: rename files to "odb.{c,h}"
+      odb: introduce parent pointers
+      odb: get rid of `the_repository` in `find_odb()`
+      odb: get rid of `the_repository` in `assert_oid_type()`
+      odb: get rid of `the_repository` in `odb_mkstemp()`
+      odb: get rid of `the_repository` when handling alternates
+      odb: get rid of `the_repository` in `for_each()` functions
+      odb: get rid of `the_repository` when handling the primary source
+      odb: get rid of `the_repository` when handling submodule sources
+      odb: trivial refactorings to get rid of `the_repository`
+      odb: rename `oid_object_info()`
+      odb: rename `repo_read_object_file()`
+      odb: rename `has_object()`
+      odb: rename `pretend_object_file()`
+      odb: rename `read_object_with_reference()`
+      BreakingChanges: announce switch to "reftable" format
+      setup: use "reftable" format when experimental features are enabled
+      t4150: fix warning printed by awk due to escaped '\@'
+      t5333: fix missing terminator for sed(1) 's' command
+      docs/git-pack-refs: document heuristic used for packing loose refs
+      refs/files: remove empty parent dirs when ref creation fails
+      t1006: fix broken TAP format
+      meson: stop discovering native version of Python
+      meson: stop printing 'https' option twice in our summaries
+      meson: improve summary of auto-detected features
+      meson: clean up unnecessary variables
+      meson: fix lookup of shell on MINGW64
+      sane-ctype: fix compiler error on Amazon Linux 2
+      meson: update subproject wrappers
+      ci: use Meson's new `--slice` option
+      midx: start tracking per object database source
+      packfile: refactor `prepare_packed_git_one()` to work on sources
+      midx: stop using linked list when closing MIDX
+      packfile: refactor `get_multi_pack_index()` to work on sources
+      packfile: stop using linked MIDX list in `find_pack_entry()`
+      packfile: stop using linked MIDX list in `get_all_packs()`
+      midx: remove now-unused linked list of multi-pack indices
+      config: drop `git_config()` wrapper
+      config: drop `git_config_clear()` wrapper
+      config: drop `git_config_get()` wrapper
+      config: drop `git_config_get_value()` wrapper
+      config: drop `git_config_get_value()` wrapper
+      config: drop `git_config_get_string_multi()` wrapper
+      config: drop `git_config_get_string()` wrapper
+      config: drop `git_config_get_string()` wrapper
+      config: drop `git_config_get_int()` wrapper
+      config: drop `git_config_get_ulong()` wrapper
+      config: drop `git_config_get_bool()` wrapper
+      config: drop `git_config_set_in_file()` wrapper
+      config: drop `git_config_set_gently()` wrapper
+      config: drop `git_config_set()` wrapper
+      config: drop `git_config_set_in_file_gently()` wrapper
+      config: drop `git_config_set_multivar_in_file_gently()` wrapper
+      config: drop `git_config_get_multivar_gently()` wrapper
+      config: drop `git_config_set_multivar()` wrapper
+      config: remove unused `the_repository` wrappers
+      config: move Git config parsing into "environment.c"
+      config: fix sign comparison warnings
+      meson: ensure correct "clar-decls.h" header is used
+
+Patrik Weiskircher (2):
+      contrib/subtree: parse using --stuck-long
+      contrib/subtree: add -S/--gpg-sign
+
+Phil Hord (3):
+      fetch-prune: optimize dangling-ref reporting
+      refs: remove old refs_warn_dangling_symref
+      clean up interface for refs_warn_dangling_symrefs
+
+Phillip Wood (6):
+      stash: allow "git stash -p <pathspec>" to assume push again
+      stash: allow "git stash [<options>] --patch <pathspec>" to assume push
+      config: remove unneeded struct field
+      CodingGuidelines: allow the use of bool
+      git-compat-util: convert string predicates to return bool
+      strbuf: convert predicates to return bool
+
+Ramsay Jones (4):
+      test-lib: add missing prerequisites for Darwin
+      build: fix FreeBSD build when sysinfo compat library installed
+      meson: fix installation when -Dlibexexdir is set
+      po/meson.build: add missing 'ga' language code
+
+Raymond E. Pasco (4):
+      apply: read in the index in --intent-to-add mode
+      apply: only write intents to add for new files
+      t4140: test apply --intent-to-add interactions
+      apply docs: clarify wording for --intent-to-add
+
+René Scharfe (10):
+      parse-options: require PARSE_OPT_NOARG for OPTION_BITOP
+      parse-options: add precision handling for PARSE_OPT_CMDMODE
+      parse-options: add precision handling for OPTION_SET_INT
+      parse-options: add precision handling for OPTION_BIT
+      parse-options: add precision handling for OPTION_NEGBIT
+      parse-options: add precision handling for OPTION_BITOP
+      parse-options: add precision handling for OPTION_COUNTUP
+      commit: convert pop_most_recent_commit() to prio_queue
+      prio-queue: add prio_queue_replace()
+      commit: use prio_queue_replace() in pop_most_recent_commit()
+
+Rodrigo Carvalho (1):
+      userdiff: add support for R programming language
+
+Rodrigo Michelassi (1):
+      t2400: replace 'test -[efd]' with 'test_path_is_*'
+
+Russell Hanneken (1):
+      doc: correct doc for glob pathspec
+
+Sebastian Andrzej Siewior (5):
+      bswap.h: add support for __BYTE_ORDER__
+      bswap.h: define GIT_LITTLE_ENDIAN on msvc as little endian
+      bswap.h: always overwrite ntohl/ ntohll macros
+      bswap.h: remove optimized x86 version of bswap32/64
+      bswap.h: provide a built-in based version of bswap32/64 if possible
+
+Seyi Kuforiji (10):
+      t/unit-tests: implement clar specific reftable test helper functions
+      t/unit-tests: convert reftable basics test to use clar test framework
+      t/unit-tests: convert reftable block test to use clar
+      t/unit-tests: convert reftable merged test to use clar
+      t/unit-tests: convert reftable pq test to use clar
+      t/unit-tests: convert reftable table test to use clar
+      t/unit-tests: convert reftable readwrite test to use clar
+      t/unit-tests: convert reftable record test to use clar
+      t/unit-tests: convert reftable stack test to use clar
+      t/unit-tests: finalize migration of reftable-related tests
+
+Siddharth Asthana (1):
+      cat-file: fix mailmap application for different author and committer
+
+Takashi Iwai (3):
+      gitk: Add support of SHA256 repositories
+      git-gui: Replace null_sha1 with nullid
+      git-gui: Add support of SHA256 repo
+
+Taylor Blau (11):
+      pack-objects: use standard option incompatibility functions
+      pack-objects: limit scope in 'add_object_entry_from_pack()'
+      pack-objects: factor out handling '--stdin-packs'
+      pack-objects: declare 'rev_info' for '--stdin-packs' earlier
+      pack-objects: perform name-hash traversal for unpacked objects
+      pack-objects: fix typo in 'show_object_pack_hint()'
+      pack-objects: swap 'show_{object,commit}_pack_hint'
+      pack-objects: introduce '--stdin-packs=follow'
+      repack: exclude cruft pack(s) from the MIDX where possible
+      pack-bitmap: fix memory leak if load_bitmap() failed
+      Documentation/RelNotes: use .adoc extension for new security releases
+
+Timur Sultanaev (1):
+      docs: correct ORIG_HEAD example in "git merge" documentation
+
+Todd Zullinger (1):
+      t: avoid git config syntax from newer releases
+
+Victoria Dye (3):
+      t1006: update 'run_tests' to test generic object specifiers
+      cat-file: add %(objectmode) atom
+      cat-file.c: add batch handling for submodules
+
+brian m. carlson (16):
+      object-name: make get_oid quietly return an error
+      builtin/stash: factor out revision parsing into a function
+      builtin/stash: provide a way to export stashes to a ref
+      builtin/stash: provide a way to import stashes from a ref
+      hash: add a constant for the default hash algorithm
+      hash: add a constant for the legacy hash algorithm
+      builtin: use default hash when outside a repository
+      Use legacy hash for legacy formats
+      setup: use the default algorithm to initialize repo format
+      t: default to compile-time default hash if not set
+      t1007: choose the built-in hash outside of a repo
+      t4042: choose the built-in hash outside of a repo
+      t5300: choose the built-in hash outside of a repo
+      help: add a build option for default hash
+      Enable SHA-256 by default in breaking changes mode
+      SubmittingPatches: allow non-real name contributions
+
+chenjianhu (1):
+      t7450: inspect the correct path a broken code would write to
+
+redoste (1):
+      ssh signing: don't detach the filename strbuf from key_file tempfile
+
+shejialuo (8):
+      string-list: fix sign compare warnings for loop iterator
+      string-list: remove unused "insert_at" parameter from add_entry
+      string-list: return index directly when inserting an existing element
+      string-list: enable sign compare warnings check
+      u-string-list: move "test_split" into "u-string-list.c"
+      u-string-list: move "test_split_in_place" to "u-string-list.c"
+      u-string-list: move "filter string" test to "u-string-list.c"
+      u-string-list: move "remove duplicates" test to "u-string-list.c"
+
+Øystein Walle (1):
+      rebase: write script before initializing state
+
+
+Version v2.50.1; changes since v2.50.0:
+---------------------------------------
+
+Avi Halachmi (:avih) (1):
+      gitk: encode arguments correctly with "open"
+
+Johannes Sixt (27):
+      gitk: treat file names beginning with "|" as relative paths
+      gitk: have callers of diffcmd supply pipe symbol when necessary
+      gitk: sanitize 'exec' arguments: simple cases
+      gitk: sanitize 'exec' arguments: 'eval exec'
+      gitk: sanitize 'exec' arguments: redirections
+      gitk: sanitize 'exec' arguments: redirections and background
+      gitk: sanitize 'exec' arguments: redirect to process
+      gitk: sanitize 'open' arguments: simple commands
+      gitk: sanitize 'open' arguments: simple commands with redirections
+      gitk: sanitize 'open' arguments: simple commands, readable and writable
+      gitk: collect construction of blameargs into a single conditional
+      gitk: sanitize 'open' arguments: command pipeline
+      git-gui: remove special treatment of Windows from open_cmd_pipe
+      git-gui: remove git config --list handling for git < 1.5.3
+      git-gui: treat file names beginning with "|" as relative paths
+      git-gui: sanitize 'exec' arguments: simple cases
+      git-gui: sanitize 'exec' arguments: background
+      git-gui: remove option --stderr from git_read
+      git-gui: break out a separate function git_read_nice
+      git-gui: use git_read in githook_read
+      gitk: sanitize 'open' arguments: revisit recently updated 'open' calls
+      git-gui: convert git_read*, git_write to be non-variadic
+      git-gui: pass redirections as separate argument to _open_stdout_stderr
+      git-gui: pass redirections as separate argument to git_read
+      git-gui: introduce function git_redir for git calls with redirections
+      git-gui: do not mistake command arguments as redirection operators
+      git-gui: sanitize 'exec' arguments: convert new 'cygpath' calls
+
+Junio C Hamano (2):
+      Git 2.49.1
+      Git 2.50.1
+
+Justin Tobler (1):
+      config: quote values containing CR character
+
+Mark Levedahl (13):
+      git-gui: _which, only add .exe suffix if not present
+      git-gui: use [is_Windows], not bad _shellpath
+      git-gui: make _shellpath usable on startup
+      git-gui: remove Tcl 8.4 workaround on 2>@1 redirection
+      git-gui: use only the configured shell
+      git-gui: remove HEAD detachment implementation for git < 1.5.3
+      git-gui: remove unused proc is_shellscript
+      git-gui: avoid auto_execok for git-bash menu item
+      git-gui: avoid auto_execok in do_windows_shortcut
+      git-gui: cleanup git-bash menu item
+      git-gui: assure PATH has only absolute elements.
+      git-gui: sanitize $PATH on all platforms
+      git-gui: override exec and open only on Windows
+
+Patrick Steinhardt' via Git Security (1):
+      bundle-uri: fix arbitrary file writes via parameter injection
+
+Taylor Blau (7):
+      wincred: avoid buffer overflow in wcsncat()
+      Git 2.43.7
+      Git 2.44.4
+      Git 2.45.4
+      Git 2.46.4
+      Git 2.47.3
+      Git 2.48.2
+
+
 Version v2.50.0; changes since v2.50.0-rc2:
 -------------------------------------------
 
@@ -160,7 +930,7 @@ shejialuo (1):
       fsck: ignore missing "refs" directory for linked worktrees
 
 
-Version v2.50.0-rc0; changes since v2.49.0:
+Version v2.50.0-rc0; changes since v2.49.1:
 -------------------------------------------
 
 Abhijeet Sonar (1):
@@ -344,7 +1114,7 @@ Jeff King (41):
 Jensen Huang (1):
       index-pack, unpack-objects: restore missing ->init_fn
 
-Johannes Schindelin (38):
+Johannes Schindelin (36):
       t3650: document bug when directory renames are turned off
       mingw: special-case administrators even more
       test-tool path-utils: support debugging "dubious ownership" issues
@@ -360,8 +1130,6 @@ Johannes Schindelin (38):
       clang: warn when the comma operator is used
       detect-compiler: detect clang even if it found CUDA
       read-cache: check range before dereferencing an array element
-      ci: upgrade `sparse` to supported build agents
-      ci(pedantic): ensure that awk is installed
       perf: do allow `GIT_PERF_*` to be overridden again
       mingw: do not use nedmalloc on Windows/ARM64
       msvc: do handle builds on Windows/ARM64
@@ -392,7 +1160,7 @@ Johannes Sixt (3):
 Josh Heinrichs (1):
       maintenance: fix launchctl calendar intervals
 
-Junio C Hamano (35):
+Junio C Hamano (33):
       t: document test_lazy_prereq
       t: extend test_lazy_prereq
       t: introduce WITH_BREAKING_CHANGES prerequisite
@@ -409,8 +1177,6 @@ Junio C Hamano (35):
       The seventh batch
       t9811: fix misconversion of tests
       The eighth batch
-      ci: skip unavailable external software
-      CI updates
       The ninth batch
       ci: update the message for unavailble third-party software
       ci: download JGit from maven, not eclipse.org
@@ -811,12 +1577,89 @@ shejialuo (12):
       packed-backend: extract snapshot allocation in `load_contents`
       packed-backend: mmap large "packed-refs" file during fsck
 
-Đoàn Trần Công Danh (2):
-      sparse: ignore warning from new glibc headers
+Đoàn Trần Công Danh (1):
       meson: allow customize perl installation path
 
 தமிழ் நேரம் (1):
       gitk: add Tamil translation
+
+
+Version v2.49.1; changes since v2.49.0:
+---------------------------------------
+
+Avi Halachmi (:avih) (1):
+      gitk: encode arguments correctly with "open"
+
+Johannes Schindelin (2):
+      ci: upgrade `sparse` to supported build agents
+      ci(pedantic): ensure that awk is installed
+
+Johannes Sixt (27):
+      gitk: treat file names beginning with "|" as relative paths
+      gitk: have callers of diffcmd supply pipe symbol when necessary
+      gitk: sanitize 'exec' arguments: simple cases
+      gitk: sanitize 'exec' arguments: 'eval exec'
+      gitk: sanitize 'exec' arguments: redirections
+      gitk: sanitize 'exec' arguments: redirections and background
+      gitk: sanitize 'exec' arguments: redirect to process
+      gitk: sanitize 'open' arguments: simple commands
+      gitk: sanitize 'open' arguments: simple commands with redirections
+      gitk: sanitize 'open' arguments: simple commands, readable and writable
+      gitk: collect construction of blameargs into a single conditional
+      gitk: sanitize 'open' arguments: command pipeline
+      git-gui: remove special treatment of Windows from open_cmd_pipe
+      git-gui: remove git config --list handling for git < 1.5.3
+      git-gui: treat file names beginning with "|" as relative paths
+      git-gui: sanitize 'exec' arguments: simple cases
+      git-gui: sanitize 'exec' arguments: background
+      git-gui: remove option --stderr from git_read
+      git-gui: break out a separate function git_read_nice
+      git-gui: use git_read in githook_read
+      gitk: sanitize 'open' arguments: revisit recently updated 'open' calls
+      git-gui: convert git_read*, git_write to be non-variadic
+      git-gui: pass redirections as separate argument to _open_stdout_stderr
+      git-gui: pass redirections as separate argument to git_read
+      git-gui: introduce function git_redir for git calls with redirections
+      git-gui: do not mistake command arguments as redirection operators
+      git-gui: sanitize 'exec' arguments: convert new 'cygpath' calls
+
+Junio C Hamano (3):
+      ci: skip unavailable external software
+      CI updates
+      Git 2.49.1
+
+Justin Tobler (1):
+      config: quote values containing CR character
+
+Mark Levedahl (13):
+      git-gui: _which, only add .exe suffix if not present
+      git-gui: use [is_Windows], not bad _shellpath
+      git-gui: make _shellpath usable on startup
+      git-gui: remove Tcl 8.4 workaround on 2>@1 redirection
+      git-gui: use only the configured shell
+      git-gui: remove HEAD detachment implementation for git < 1.5.3
+      git-gui: remove unused proc is_shellscript
+      git-gui: avoid auto_execok for git-bash menu item
+      git-gui: avoid auto_execok in do_windows_shortcut
+      git-gui: cleanup git-bash menu item
+      git-gui: assure PATH has only absolute elements.
+      git-gui: sanitize $PATH on all platforms
+      git-gui: override exec and open only on Windows
+
+Patrick Steinhardt' via Git Security (1):
+      bundle-uri: fix arbitrary file writes via parameter injection
+
+Taylor Blau (7):
+      wincred: avoid buffer overflow in wcsncat()
+      Git 2.43.7
+      Git 2.44.4
+      Git 2.45.4
+      Git 2.46.4
+      Git 2.47.3
+      Git 2.48.2
+
+Đoàn Trần Công Danh (1):
+      sparse: ignore warning from new glibc headers
 
 
 Version v2.49.0; changes since v2.49.0-rc2:
@@ -1041,7 +1884,7 @@ brian m. carlson (1):
       http: allow using netrc for WebDAV-based HTTP protocol
 
 
-Version v2.49.0-rc0; changes since v2.48.1:
+Version v2.49.0-rc0; changes since v2.48.2:
 -------------------------------------------
 
 Adam Dinwoodie (1):
@@ -1459,6 +2302,72 @@ brian m. carlson (7):
       diff: don't crash with empty argument to -G or -S
 
 
+Version v2.48.2; changes since v2.48.1:
+---------------------------------------
+
+Avi Halachmi (:avih) (1):
+      gitk: encode arguments correctly with "open"
+
+Johannes Sixt (27):
+      gitk: treat file names beginning with "|" as relative paths
+      gitk: have callers of diffcmd supply pipe symbol when necessary
+      gitk: sanitize 'exec' arguments: simple cases
+      gitk: sanitize 'exec' arguments: 'eval exec'
+      gitk: sanitize 'exec' arguments: redirections
+      gitk: sanitize 'exec' arguments: redirections and background
+      gitk: sanitize 'exec' arguments: redirect to process
+      gitk: sanitize 'open' arguments: simple commands
+      gitk: sanitize 'open' arguments: simple commands with redirections
+      gitk: sanitize 'open' arguments: simple commands, readable and writable
+      gitk: collect construction of blameargs into a single conditional
+      gitk: sanitize 'open' arguments: command pipeline
+      git-gui: remove special treatment of Windows from open_cmd_pipe
+      git-gui: remove git config --list handling for git < 1.5.3
+      git-gui: treat file names beginning with "|" as relative paths
+      git-gui: sanitize 'exec' arguments: simple cases
+      git-gui: sanitize 'exec' arguments: background
+      git-gui: remove option --stderr from git_read
+      git-gui: break out a separate function git_read_nice
+      git-gui: use git_read in githook_read
+      gitk: sanitize 'open' arguments: revisit recently updated 'open' calls
+      git-gui: convert git_read*, git_write to be non-variadic
+      git-gui: pass redirections as separate argument to _open_stdout_stderr
+      git-gui: pass redirections as separate argument to git_read
+      git-gui: introduce function git_redir for git calls with redirections
+      git-gui: do not mistake command arguments as redirection operators
+      git-gui: sanitize 'exec' arguments: convert new 'cygpath' calls
+
+Justin Tobler (1):
+      config: quote values containing CR character
+
+Mark Levedahl (13):
+      git-gui: _which, only add .exe suffix if not present
+      git-gui: use [is_Windows], not bad _shellpath
+      git-gui: make _shellpath usable on startup
+      git-gui: remove Tcl 8.4 workaround on 2>@1 redirection
+      git-gui: use only the configured shell
+      git-gui: remove HEAD detachment implementation for git < 1.5.3
+      git-gui: remove unused proc is_shellscript
+      git-gui: avoid auto_execok for git-bash menu item
+      git-gui: avoid auto_execok in do_windows_shortcut
+      git-gui: cleanup git-bash menu item
+      git-gui: assure PATH has only absolute elements.
+      git-gui: sanitize $PATH on all platforms
+      git-gui: override exec and open only on Windows
+
+Patrick Steinhardt' via Git Security (1):
+      bundle-uri: fix arbitrary file writes via parameter injection
+
+Taylor Blau (7):
+      wincred: avoid buffer overflow in wcsncat()
+      Git 2.43.7
+      Git 2.44.4
+      Git 2.45.4
+      Git 2.46.4
+      Git 2.47.3
+      Git 2.48.2
+
+
 Version v2.48.1; changes since v2.48.0:
 ---------------------------------------
 
@@ -1746,7 +2655,7 @@ Yuri Konotopov (1):
       git-gui: use system encoding to show console output
 
 
-Version v2.48.0-rc0; changes since v2.47.2:
+Version v2.48.0-rc0; changes since v2.47.3:
 -------------------------------------------
 
 Abraham Samuel Adekunle (2):
@@ -2240,6 +3149,71 @@ shejialuo (10):
       ref-cache: fix invalid free operation in `free_ref_entry`
 
 
+Version v2.47.3; changes since v2.47.2:
+---------------------------------------
+
+Avi Halachmi (:avih) (1):
+      gitk: encode arguments correctly with "open"
+
+Johannes Sixt (27):
+      gitk: treat file names beginning with "|" as relative paths
+      gitk: have callers of diffcmd supply pipe symbol when necessary
+      gitk: sanitize 'exec' arguments: simple cases
+      gitk: sanitize 'exec' arguments: 'eval exec'
+      gitk: sanitize 'exec' arguments: redirections
+      gitk: sanitize 'exec' arguments: redirections and background
+      gitk: sanitize 'exec' arguments: redirect to process
+      gitk: sanitize 'open' arguments: simple commands
+      gitk: sanitize 'open' arguments: simple commands with redirections
+      gitk: sanitize 'open' arguments: simple commands, readable and writable
+      gitk: collect construction of blameargs into a single conditional
+      gitk: sanitize 'open' arguments: command pipeline
+      git-gui: remove special treatment of Windows from open_cmd_pipe
+      git-gui: remove git config --list handling for git < 1.5.3
+      git-gui: treat file names beginning with "|" as relative paths
+      git-gui: sanitize 'exec' arguments: simple cases
+      git-gui: sanitize 'exec' arguments: background
+      git-gui: remove option --stderr from git_read
+      git-gui: break out a separate function git_read_nice
+      git-gui: use git_read in githook_read
+      gitk: sanitize 'open' arguments: revisit recently updated 'open' calls
+      git-gui: convert git_read*, git_write to be non-variadic
+      git-gui: pass redirections as separate argument to _open_stdout_stderr
+      git-gui: pass redirections as separate argument to git_read
+      git-gui: introduce function git_redir for git calls with redirections
+      git-gui: do not mistake command arguments as redirection operators
+      git-gui: sanitize 'exec' arguments: convert new 'cygpath' calls
+
+Justin Tobler (1):
+      config: quote values containing CR character
+
+Mark Levedahl (13):
+      git-gui: _which, only add .exe suffix if not present
+      git-gui: use [is_Windows], not bad _shellpath
+      git-gui: make _shellpath usable on startup
+      git-gui: remove Tcl 8.4 workaround on 2>@1 redirection
+      git-gui: use only the configured shell
+      git-gui: remove HEAD detachment implementation for git < 1.5.3
+      git-gui: remove unused proc is_shellscript
+      git-gui: avoid auto_execok for git-bash menu item
+      git-gui: avoid auto_execok in do_windows_shortcut
+      git-gui: cleanup git-bash menu item
+      git-gui: assure PATH has only absolute elements.
+      git-gui: sanitize $PATH on all platforms
+      git-gui: override exec and open only on Windows
+
+Patrick Steinhardt' via Git Security (1):
+      bundle-uri: fix arbitrary file writes via parameter injection
+
+Taylor Blau (6):
+      wincred: avoid buffer overflow in wcsncat()
+      Git 2.43.7
+      Git 2.44.4
+      Git 2.45.4
+      Git 2.46.4
+      Git 2.47.3
+
+
 Version v2.47.2; changes since v2.47.1:
 ---------------------------------------
 
@@ -2494,7 +3468,7 @@ Taylor Blau (8):
       csum-file.c: use unsafe SHA-1 implementation when available
 
 
-Version v2.47.0-rc0; changes since v2.46.2:
+Version v2.47.0-rc0; changes since v2.46.4:
 -------------------------------------------
 
 AbdAlRahman Gad (8):
@@ -3085,6 +4059,94 @@ shejialuo (9):
       fsck: add ref name check for files backend
 
 
+Version v2.46.4; changes since v2.46.3:
+---------------------------------------
+
+Avi Halachmi (:avih) (1):
+      gitk: encode arguments correctly with "open"
+
+Johannes Sixt (27):
+      gitk: treat file names beginning with "|" as relative paths
+      gitk: have callers of diffcmd supply pipe symbol when necessary
+      gitk: sanitize 'exec' arguments: simple cases
+      gitk: sanitize 'exec' arguments: 'eval exec'
+      gitk: sanitize 'exec' arguments: redirections
+      gitk: sanitize 'exec' arguments: redirections and background
+      gitk: sanitize 'exec' arguments: redirect to process
+      gitk: sanitize 'open' arguments: simple commands
+      gitk: sanitize 'open' arguments: simple commands with redirections
+      gitk: sanitize 'open' arguments: simple commands, readable and writable
+      gitk: collect construction of blameargs into a single conditional
+      gitk: sanitize 'open' arguments: command pipeline
+      git-gui: remove special treatment of Windows from open_cmd_pipe
+      git-gui: remove git config --list handling for git < 1.5.3
+      git-gui: treat file names beginning with "|" as relative paths
+      git-gui: sanitize 'exec' arguments: simple cases
+      git-gui: sanitize 'exec' arguments: background
+      git-gui: remove option --stderr from git_read
+      git-gui: break out a separate function git_read_nice
+      git-gui: use git_read in githook_read
+      gitk: sanitize 'open' arguments: revisit recently updated 'open' calls
+      git-gui: convert git_read*, git_write to be non-variadic
+      git-gui: pass redirections as separate argument to _open_stdout_stderr
+      git-gui: pass redirections as separate argument to git_read
+      git-gui: introduce function git_redir for git calls with redirections
+      git-gui: do not mistake command arguments as redirection operators
+      git-gui: sanitize 'exec' arguments: convert new 'cygpath' calls
+
+Justin Tobler (1):
+      config: quote values containing CR character
+
+Mark Levedahl (13):
+      git-gui: _which, only add .exe suffix if not present
+      git-gui: use [is_Windows], not bad _shellpath
+      git-gui: make _shellpath usable on startup
+      git-gui: remove Tcl 8.4 workaround on 2>@1 redirection
+      git-gui: use only the configured shell
+      git-gui: remove HEAD detachment implementation for git < 1.5.3
+      git-gui: remove unused proc is_shellscript
+      git-gui: avoid auto_execok for git-bash menu item
+      git-gui: avoid auto_execok in do_windows_shortcut
+      git-gui: cleanup git-bash menu item
+      git-gui: assure PATH has only absolute elements.
+      git-gui: sanitize $PATH on all platforms
+      git-gui: override exec and open only on Windows
+
+Patrick Steinhardt' via Git Security (1):
+      bundle-uri: fix arbitrary file writes via parameter injection
+
+Taylor Blau (5):
+      wincred: avoid buffer overflow in wcsncat()
+      Git 2.43.7
+      Git 2.44.4
+      Git 2.45.4
+      Git 2.46.4
+
+
+Version v2.46.3; changes since v2.46.2:
+---------------------------------------
+
+Johannes Schindelin (11):
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+      Git 2.41.3
+      Git 2.42.4
+      Git 2.43.6
+      Git 2.44.3
+      Git 2.45.3
+      Git 2.46.3
+
+Junio C Hamano (2):
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+
+Patrick Steinhardt (1):
+      t7300: work around platform-specific behaviour with long paths on MinGW
+
+
 Version v2.46.2; changes since v2.46.1:
 ---------------------------------------
 
@@ -3396,7 +4458,7 @@ brian m. carlson (5):
       http: allow authenticating proactively
 
 
-Version v2.46.0-rc0; changes since v2.45.2:
+Version v2.46.0-rc0; changes since v2.45.4:
 -------------------------------------------
 
 Aaron Plattner (1):
@@ -3404,9 +4466,6 @@ Aaron Plattner (1):
 
 Abhijeet Sonar (1):
       pathspec: fix typo "glossary-context.txt" -> "glossary-content.txt"
-
-Adam Johnson (1):
-      stash: fix "--staged" with binary files
 
 Beat Bolli (3):
       t/t4026-color: remove an extra double quote character
@@ -3420,43 +4479,23 @@ Chandra Pratap (5):
       t: add test for put_be16()
       t: improve the test-case for parse_names()
 
-D. Ben Knoble (1):
-      completion: zsh: stop leaking local cache variable
-
 Darcy Burke (1):
       date: detect underflow/overflow when parsing dates with timezone offset
 
-Derrick Stolee (7):
-      scalar: avoid segfault in reconfigure --all
-      commit-graph: increment progress indicator
+Derrick Stolee (5):
       sparse-checkout: refactor skip worktree retry logic
       sparse-index: refactor path_found()
       sparse-index: use strbuf in path_found()
       sparse-index: count lstat() calls
       sparse-index: improve lstat caching of sparse paths
 
-Dov Murik (1):
-      documentation: git-update-index: add --show-index-version to synopsis
-
-Dr. David Alan Gilbert (1):
-      fetch-pack: remove unused 'struct loose_object_iter'
-
-Dragan Simic (3):
+Dragan Simic (1):
       send-email: move newline characters out of a few translatable strings
-      format-patch: ensure that --rfc and -k are mutually exclusive
-      doc: interactive.singleKey is disabled by default
-
-Eric Sunshine (2):
-      chainlint.pl: make CPU count computation more robust
-      chainlint.pl: latch CPU count directly reported by /proc/cpuinfo
 
 Eric Wong (3):
       Git.pm: use array in command_bidi_pipe example
       t1006: ensure cat-file info isn't buffered by default
       object-file: fix leak on conversion failure
-
-Fahad Alrashed (1):
-      git-p4: show Perforce error to the user
 
 Ghanshyam Thakkar (5):
       t/: port helper/test-strcmp-offset.c to unit-tests/t-strcmp-offset.c
@@ -3478,24 +4517,19 @@ James Liu (3):
       doc: add spacing around paginate options
       advice: add --no-advice global option
 
-Jeff King (41):
+Jeff King (34):
       t/Makefile: run unit tests alongside shell tests
       ci: update coverity runs_on_pool reference
-      ci: drop mention of BREW_INSTALL_PACKAGES variable
-      ci: avoid bare "gcc" for osx-gcc job
-      ci: stop installing "gcc-13" for osx-gcc
       t-strvec: use va_end() to match va_start()
       t-strvec: mark variable-arg helper with LAST_ARG_MUST_BE_NULL
       mv: move src_dir cleanup to end of cmd_mv()
       mv: factor out empty src_dir removal
       mv: replace src_dir with a strvec
-      dir.c: skip .gitignore, etc larger than INT_MAX
       sparse-checkout: free string list in write_cone_to_file()
       sparse-checkout: pass string literals directly to add_pattern()
       dir.c: free strings in sparse cone pattern hashmaps
       sparse-checkout: clear patterns when init() sees existing sparse file
       dir.c: free removed sparse-pattern hashmap entries
-      dir.c: reduce max pattern file size to 100MB
       dir.c: always copy input to add_pattern()
       sparse-checkout: reuse --stdin buffer when reading patterns
       sparse-checkout: always free "line" strbuf after reading input
@@ -3518,14 +4552,9 @@ Jeff King (41):
       t5801: test remote.*.vcs config
       remote: always require at least one url in a remote
       remote: drop checks for zero-url case
-      fetch-pack: fix segfault when fscking without --lock-pack
-      t5500: fix mistaken $SERVER reference in helper function
 
-Johannes Schindelin (4):
-      for-each-repo: optionally keep going on an error
-      maintenance: running maintenance should not stop on errors
+Johannes Schindelin (1):
       cmake: let `test-tool` run the unit tests, too
-      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
 
 Johannes Sixt (1):
       git-gui: note the new maintainer
@@ -3534,9 +4563,6 @@ John Passaro (3):
       builtin/commit: use ARGV macro to collect trailers
       builtin/commit: refactor --trailer logic
       builtin/tag: add --trailer option
-
-John Paul Adrian Glaubitz (1):
-      chainlint.pl: fix incorrect CPU count on Linux SPARC
 
 Jonathan Tan (1):
       gitformat-commit-graph: describe version 2 of BDAT
@@ -3555,28 +4581,21 @@ Josh Steadmon (8):
       ci: use test-tool as unit test runner on Windows
       doc: describe the project's decision-making process
 
-Junio C Hamano (61):
+Junio C Hamano (44):
       format-patch: allow --rfc to optionally take a value, like --rfc=WIP
       format-patch: "--rfc=-(WIP)" appends to produce [PATCH (WIP)]
       Start the 2.46 cycle
-      rev-parse: document how --is-* options work outside a repository
-      t/lib-chunk: work around broken "mv" on some vintage of macOS
-      stop using HEAD for attributes in bare repository by default
       Makefile(s): do not enforce "all indents must be done with tab"
       format-patch: run range-diff with larger creation-factor
       t0018: two small fixes
       The second batch
       SubmittingPatches: move the patch-flow section earlier
       SubmittingPatches: extend the "flow" section
-      SubmittingPatches: welcome the new maintainer of git-gui part
-      compat/regex: fix argument order to calloc(3)
       The third batch
       The fourth batch
       Revert "diff: fix --exit-code with external diff"
       The fifth batch
       t0017: clarify dubious test set-up
-      SubmittingPatches: advertise git-manpages-l10n project a bit
-      diff: document what --name-only shows
       The sixth batch
       setup: add an escape hatch for "no more default hash algorithm" change
       t1517: test commands that are designed to be run outside repository
@@ -3586,23 +4605,15 @@ Junio C Hamano (61):
       show_log: factor out interdiff/range-diff generation
       format-patch: move range/inter diff at the end of a single patch output
       The eighth batch
-      safe.directory: allow "lead/ing/path/*" match
       The ninth batch
       t1517: more coverage for commands that work without repository
-      Post 2.45.2 updates
       The tenth batch
       imap-send: minimum leakfix
       refs: call branches branches
       ls-remote: introduce --branches and deprecate --heads
       show-ref: introduce --branches and deprecate --heads
-      attr.tree: HEAD:.gitattributes is no longer the default in a bare repo
       add-i: finally retire add.interactive.useBuiltin
       The eleventh batch
-      worktree_git_path(): move the declaration to path.h
-      __attribute__: trace2_region_enter_printf() is like "printf"
-      __attribute__: remove redundant attribute declaration for git_die_config()
-      __attribute__: mark some functions with LAST_ARG_MUST_BE_NULL
-      __attribute__: add a few missing format attributes
       The twelfth batch
       The thirteenth batch
       The fourteenth batch
@@ -3612,14 +4623,11 @@ Junio C Hamano (61):
       t0006: simplify prerequisites
       archive: document that --add-virtual-file takes full path
       The seventeenth batch
-      More post 2.45.2 updates from the 'master' front
-      Yet another batch of post 2.45.2 updates from the 'master' front
       The eighteenth batch
       The ninteenth batch
       Git 2.46-rc0
 
-Justin Tobler (6):
-      doc: clarify practices for submitting updated patch versions
+Justin Tobler (5):
       ci: pre-collapse GitLab CI sections
       github-ci: fix link to whitespace error
       ci: separate whitespace check script
@@ -3674,8 +4682,7 @@ Linus Arver (18):
       trailer: document parse_trailers() usage
       trailer unit tests: inspect iterator contents
 
-Marcel Telka (9):
-      t/t0211-trace2-perf.sh: fix typo patern -> pattern
+Marcel Telka (8):
       Switch grep from non-portable BRE to portable ERE
       t/t9902-completion.sh: backslashes in echo
       t/t0600-reffiles-backend.sh: rm -v is not portable
@@ -3685,13 +4692,10 @@ Marcel Telka (9):
       t/t9001-send-email.sh: sed - remove the i flag for s
       scalar: make enlistment delete to work on all POSIX platforms
 
-Mike Hommey (1):
-      win32: fix building with NO_UNIX_SOCKETS
-
 Orgad Shaneh (1):
       git-gui: fix inability to quit after closing another instance
 
-Patrick Steinhardt (262):
+Patrick Steinhardt (259):
       refs/reftable: fix D/F conflict error message on ref copy
       refs/reftable: perform explicit D/F check when writing symrefs
       refs/reftable: skip duplicate name checks
@@ -3737,7 +4741,6 @@ Patrick Steinhardt (262):
       builtin/config: introduce "edit" subcommand
       builtin/config: display subcommand help
       gitlab-ci: add smoke test for fuzzers
-      ci: fix Python dependency on Ubuntu 24.04
       path: harden validation of HEAD with non-standard hashes
       path: move `validate_headref()` to its only user
       parse-options-cb: only abbreviate hashes when hash algo is known
@@ -3831,7 +4834,6 @@ Patrick Steinhardt (262):
       refs/packed: remove references to `the_hash_algo`
       builtin/patch-id: fix uninitialized hash function
       builtin/hash-object: fix uninitialized hash function
-      setup: fix bug with "includeIf.onbranch" when initializing dir
       ci: add missing dependency for TTY prereq
       transport-helper: fix leaking helper name
       t: mark a bunch of tests as leak-free
@@ -3869,7 +4871,6 @@ Patrick Steinhardt (262):
       refs: implement removal of ref storages
       refs: implement logic to migrate between ref storage formats
       builtin/refs: new command to migrate ref storage formats
-      ci: fix check for Ubuntu 20.04
       global: improve const correctness when assigning string constants
       global: convert intentionally-leaking config strings to consts
       refs/reftable: stop micro-optimizing refname allocations on copy
@@ -3958,29 +4959,17 @@ Patrick Steinhardt (262):
 Peter Krefting (1):
       git-gui: sv.po: Update Swedish translation (576t0f0u)
 
-Phillip Wood (7):
-      sequencer: always free "struct replay_opts"
-      sequencer: start removing private fields from public API
-      sequencer: move current fixups to private context
-      sequencer: store commit message in private context
-      rebase -m: fix --signoff with conflicts
-      rebase -i: pass struct replay_opts to parse_insn_line()
-      rebase -i: improve error message when picking merge
-
 Randall S. Becker (3):
       version: --build-options reports OpenSSL version information
       version: teach --build-options to reports libcurl version information
       version: teach --build-options to reports zlib version information
 
-René Scharfe (10):
-      diff-lib: stop calling diff_setup_done() in do_diff_cache()
+René Scharfe (7):
       diff: report unmerged paths as changes in run_diff_cmd()
       diff: fix --exit-code with external diff
-      difftool: add env vars directly in run_file_diff()
       t4020: test exit code with external diffs
       userdiff: add and use struct external_diff
       diff: let external diffs report that changes are uninteresting
-      commit: remove find_header_mem()
       diff: allow --color-moved with --no-ext-diff
       submodule--helper: use strvec_pushf() for --super-prefix
 
@@ -3999,8 +4988,7 @@ Rubén Justo (5):
 Shane Sun (1):
       doc: fix case error of eol attribute in example
 
-Taylor Blau (62):
-      attr.c: move ATTR_MAX_FILE_SIZE check into read_attr_from_buf()
+Taylor Blau (61):
       Makefile(s): avoid recipe prefix in conditional statements
       object.h: add flags allocated by pack-bitmap.h
       pack-bitmap-write.c: move commit_positions into commit_pos fields
@@ -4067,19 +5055,12 @@ Tom Hughes (2):
       push: don't fetch commit object when checking existence
       promisor-remote: add promisor.quiet configuration option
 
-Torsten Bögershausen (1):
-      macOS: ls-files path fails if path of workdir is NFD
-
-Victoria Dye (1):
-      Documentation/git-merge-tree.txt: document -X
-
-Xing Xin (4):
-      midx: disable replace objects
+Xing Xin (3):
       bundle-uri: verify oid before writing refs
       fetch-pack: expose fsckObjects configuration logic
       unbundle: extend object verification for fetches
 
-brian m. carlson (19):
+brian m. carlson (17):
       credential: add an authtype field
       remote-curl: reset headers on new request
       http: use new headers for each object request
@@ -4096,12 +5077,197 @@ brian m. carlson (19):
       t: add credential tests for authtype
       credential-cache: implement authtype capability
       credential: add method for querying capabilities
-      t4046: avoid continue in &&-chain for zsh
-      vimdiff: make script and tests work with zsh
       git-gui: po: fix typo in French "aperçu"
 
 Øystein Walle (1):
       Documentation: Mention that refspecs are explained elsewhere
+
+
+Version v2.45.4; changes since v2.45.3:
+---------------------------------------
+
+Avi Halachmi (:avih) (1):
+      gitk: encode arguments correctly with "open"
+
+Johannes Sixt (27):
+      gitk: treat file names beginning with "|" as relative paths
+      gitk: have callers of diffcmd supply pipe symbol when necessary
+      gitk: sanitize 'exec' arguments: simple cases
+      gitk: sanitize 'exec' arguments: 'eval exec'
+      gitk: sanitize 'exec' arguments: redirections
+      gitk: sanitize 'exec' arguments: redirections and background
+      gitk: sanitize 'exec' arguments: redirect to process
+      gitk: sanitize 'open' arguments: simple commands
+      gitk: sanitize 'open' arguments: simple commands with redirections
+      gitk: sanitize 'open' arguments: simple commands, readable and writable
+      gitk: collect construction of blameargs into a single conditional
+      gitk: sanitize 'open' arguments: command pipeline
+      git-gui: remove special treatment of Windows from open_cmd_pipe
+      git-gui: remove git config --list handling for git < 1.5.3
+      git-gui: treat file names beginning with "|" as relative paths
+      git-gui: sanitize 'exec' arguments: simple cases
+      git-gui: sanitize 'exec' arguments: background
+      git-gui: remove option --stderr from git_read
+      git-gui: break out a separate function git_read_nice
+      git-gui: use git_read in githook_read
+      gitk: sanitize 'open' arguments: revisit recently updated 'open' calls
+      git-gui: convert git_read*, git_write to be non-variadic
+      git-gui: pass redirections as separate argument to _open_stdout_stderr
+      git-gui: pass redirections as separate argument to git_read
+      git-gui: introduce function git_redir for git calls with redirections
+      git-gui: do not mistake command arguments as redirection operators
+      git-gui: sanitize 'exec' arguments: convert new 'cygpath' calls
+
+Justin Tobler (1):
+      config: quote values containing CR character
+
+Mark Levedahl (13):
+      git-gui: _which, only add .exe suffix if not present
+      git-gui: use [is_Windows], not bad _shellpath
+      git-gui: make _shellpath usable on startup
+      git-gui: remove Tcl 8.4 workaround on 2>@1 redirection
+      git-gui: use only the configured shell
+      git-gui: remove HEAD detachment implementation for git < 1.5.3
+      git-gui: remove unused proc is_shellscript
+      git-gui: avoid auto_execok for git-bash menu item
+      git-gui: avoid auto_execok in do_windows_shortcut
+      git-gui: cleanup git-bash menu item
+      git-gui: assure PATH has only absolute elements.
+      git-gui: sanitize $PATH on all platforms
+      git-gui: override exec and open only on Windows
+
+Patrick Steinhardt' via Git Security (1):
+      bundle-uri: fix arbitrary file writes via parameter injection
+
+Taylor Blau (4):
+      wincred: avoid buffer overflow in wcsncat()
+      Git 2.43.7
+      Git 2.44.4
+      Git 2.45.4
+
+
+Version v2.45.3; changes since v2.45.2:
+---------------------------------------
+
+Adam Johnson (1):
+      stash: fix "--staged" with binary files
+
+D. Ben Knoble (1):
+      completion: zsh: stop leaking local cache variable
+
+Derrick Stolee (2):
+      scalar: avoid segfault in reconfigure --all
+      commit-graph: increment progress indicator
+
+Dov Murik (1):
+      documentation: git-update-index: add --show-index-version to synopsis
+
+Dr. David Alan Gilbert (1):
+      fetch-pack: remove unused 'struct loose_object_iter'
+
+Dragan Simic (2):
+      format-patch: ensure that --rfc and -k are mutually exclusive
+      doc: interactive.singleKey is disabled by default
+
+Eric Sunshine (2):
+      chainlint.pl: make CPU count computation more robust
+      chainlint.pl: latch CPU count directly reported by /proc/cpuinfo
+
+Fahad Alrashed (1):
+      git-p4: show Perforce error to the user
+
+Jeff King (7):
+      ci: drop mention of BREW_INSTALL_PACKAGES variable
+      ci: avoid bare "gcc" for osx-gcc job
+      ci: stop installing "gcc-13" for osx-gcc
+      dir.c: skip .gitignore, etc larger than INT_MAX
+      dir.c: reduce max pattern file size to 100MB
+      fetch-pack: fix segfault when fscking without --lock-pack
+      t5500: fix mistaken $SERVER reference in helper function
+
+Johannes Schindelin (13):
+      for-each-repo: optionally keep going on an error
+      maintenance: running maintenance should not stop on errors
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+      Git 2.41.3
+      Git 2.42.4
+      Git 2.43.6
+      Git 2.44.3
+      Git 2.45.3
+
+John Paul Adrian Glaubitz (1):
+      chainlint.pl: fix incorrect CPU count on Linux SPARC
+
+Junio C Hamano (19):
+      rev-parse: document how --is-* options work outside a repository
+      t/lib-chunk: work around broken "mv" on some vintage of macOS
+      stop using HEAD for attributes in bare repository by default
+      SubmittingPatches: welcome the new maintainer of git-gui part
+      compat/regex: fix argument order to calloc(3)
+      SubmittingPatches: advertise git-manpages-l10n project a bit
+      diff: document what --name-only shows
+      safe.directory: allow "lead/ing/path/*" match
+      Post 2.45.2 updates
+      attr.tree: HEAD:.gitattributes is no longer the default in a bare repo
+      worktree_git_path(): move the declaration to path.h
+      __attribute__: trace2_region_enter_printf() is like "printf"
+      __attribute__: remove redundant attribute declaration for git_die_config()
+      __attribute__: mark some functions with LAST_ARG_MUST_BE_NULL
+      __attribute__: add a few missing format attributes
+      More post 2.45.2 updates from the 'master' front
+      Yet another batch of post 2.45.2 updates from the 'master' front
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+
+Justin Tobler (1):
+      doc: clarify practices for submitting updated patch versions
+
+Marcel Telka (1):
+      t/t0211-trace2-perf.sh: fix typo patern -> pattern
+
+Mike Hommey (1):
+      win32: fix building with NO_UNIX_SOCKETS
+
+Patrick Steinhardt (4):
+      ci: fix Python dependency on Ubuntu 24.04
+      setup: fix bug with "includeIf.onbranch" when initializing dir
+      ci: fix check for Ubuntu 20.04
+      t7300: work around platform-specific behaviour with long paths on MinGW
+
+Phillip Wood (7):
+      sequencer: always free "struct replay_opts"
+      sequencer: start removing private fields from public API
+      sequencer: move current fixups to private context
+      sequencer: store commit message in private context
+      rebase -m: fix --signoff with conflicts
+      rebase -i: pass struct replay_opts to parse_insn_line()
+      rebase -i: improve error message when picking merge
+
+René Scharfe (3):
+      diff-lib: stop calling diff_setup_done() in do_diff_cache()
+      difftool: add env vars directly in run_file_diff()
+      commit: remove find_header_mem()
+
+Taylor Blau (1):
+      attr.c: move ATTR_MAX_FILE_SIZE check into read_attr_from_buf()
+
+Torsten Bögershausen (1):
+      macOS: ls-files path fails if path of workdir is NFD
+
+Victoria Dye (1):
+      Documentation/git-merge-tree.txt: document -X
+
+Xing Xin (1):
+      midx: disable replace objects
+
+brian m. carlson (2):
+      t4046: avoid continue in &&-chain for zsh
+      vimdiff: make script and tests work with zsh
 
 
 Version v2.45.2; changes since v2.45.1:
@@ -4304,7 +5470,7 @@ Yehezkel Bernat (1):
       t9604: Fix test for musl libc and new Debian
 
 
-Version v2.45.0-rc0; changes since v2.44.2:
+Version v2.45.0-rc0; changes since v2.44.4:
 -------------------------------------------
 
 Ahelenia Ziemiańska (1):
@@ -4901,6 +6067,90 @@ shejialuo (1):
       t9117: prefer test_path_* helper functions
 
 
+Version v2.44.4; changes since v2.44.3:
+---------------------------------------
+
+Avi Halachmi (:avih) (1):
+      gitk: encode arguments correctly with "open"
+
+Johannes Sixt (27):
+      gitk: treat file names beginning with "|" as relative paths
+      gitk: have callers of diffcmd supply pipe symbol when necessary
+      gitk: sanitize 'exec' arguments: simple cases
+      gitk: sanitize 'exec' arguments: 'eval exec'
+      gitk: sanitize 'exec' arguments: redirections
+      gitk: sanitize 'exec' arguments: redirections and background
+      gitk: sanitize 'exec' arguments: redirect to process
+      gitk: sanitize 'open' arguments: simple commands
+      gitk: sanitize 'open' arguments: simple commands with redirections
+      gitk: sanitize 'open' arguments: simple commands, readable and writable
+      gitk: collect construction of blameargs into a single conditional
+      gitk: sanitize 'open' arguments: command pipeline
+      git-gui: remove special treatment of Windows from open_cmd_pipe
+      git-gui: remove git config --list handling for git < 1.5.3
+      git-gui: treat file names beginning with "|" as relative paths
+      git-gui: sanitize 'exec' arguments: simple cases
+      git-gui: sanitize 'exec' arguments: background
+      git-gui: remove option --stderr from git_read
+      git-gui: break out a separate function git_read_nice
+      git-gui: use git_read in githook_read
+      gitk: sanitize 'open' arguments: revisit recently updated 'open' calls
+      git-gui: convert git_read*, git_write to be non-variadic
+      git-gui: pass redirections as separate argument to _open_stdout_stderr
+      git-gui: pass redirections as separate argument to git_read
+      git-gui: introduce function git_redir for git calls with redirections
+      git-gui: do not mistake command arguments as redirection operators
+      git-gui: sanitize 'exec' arguments: convert new 'cygpath' calls
+
+Justin Tobler (1):
+      config: quote values containing CR character
+
+Mark Levedahl (13):
+      git-gui: _which, only add .exe suffix if not present
+      git-gui: use [is_Windows], not bad _shellpath
+      git-gui: make _shellpath usable on startup
+      git-gui: remove Tcl 8.4 workaround on 2>@1 redirection
+      git-gui: use only the configured shell
+      git-gui: remove HEAD detachment implementation for git < 1.5.3
+      git-gui: remove unused proc is_shellscript
+      git-gui: avoid auto_execok for git-bash menu item
+      git-gui: avoid auto_execok in do_windows_shortcut
+      git-gui: cleanup git-bash menu item
+      git-gui: assure PATH has only absolute elements.
+      git-gui: sanitize $PATH on all platforms
+      git-gui: override exec and open only on Windows
+
+Patrick Steinhardt' via Git Security (1):
+      bundle-uri: fix arbitrary file writes via parameter injection
+
+Taylor Blau (3):
+      wincred: avoid buffer overflow in wcsncat()
+      Git 2.43.7
+      Git 2.44.4
+
+
+Version v2.44.3; changes since v2.44.2:
+---------------------------------------
+
+Johannes Schindelin (9):
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+      Git 2.41.3
+      Git 2.42.4
+      Git 2.43.6
+      Git 2.44.3
+
+Junio C Hamano (2):
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+
+Patrick Steinhardt (1):
+      t7300: work around platform-specific behaviour with long paths on MinGW
+
+
 Version v2.44.2; changes since v2.44.1:
 ---------------------------------------
 
@@ -5118,7 +6368,7 @@ Victoria Dye (1):
       ref-filter.c: sort formatted dates by byte value
 
 
-Version v2.44.0-rc0; changes since v2.43.5:
+Version v2.44.0-rc0; changes since v2.43.7:
 -------------------------------------------
 
 Achu Luma (2):
@@ -5465,6 +6715,88 @@ Victoria Dye (14):
 
 Zach FettersMoore (1):
       subtree: fix split processing with multiple subtrees present
+
+
+Version v2.43.7; changes since v2.43.6:
+---------------------------------------
+
+Avi Halachmi (:avih) (1):
+      gitk: encode arguments correctly with "open"
+
+Johannes Sixt (27):
+      gitk: treat file names beginning with "|" as relative paths
+      gitk: have callers of diffcmd supply pipe symbol when necessary
+      gitk: sanitize 'exec' arguments: simple cases
+      gitk: sanitize 'exec' arguments: 'eval exec'
+      gitk: sanitize 'exec' arguments: redirections
+      gitk: sanitize 'exec' arguments: redirections and background
+      gitk: sanitize 'exec' arguments: redirect to process
+      gitk: sanitize 'open' arguments: simple commands
+      gitk: sanitize 'open' arguments: simple commands with redirections
+      gitk: sanitize 'open' arguments: simple commands, readable and writable
+      gitk: collect construction of blameargs into a single conditional
+      gitk: sanitize 'open' arguments: command pipeline
+      git-gui: remove special treatment of Windows from open_cmd_pipe
+      git-gui: remove git config --list handling for git < 1.5.3
+      git-gui: treat file names beginning with "|" as relative paths
+      git-gui: sanitize 'exec' arguments: simple cases
+      git-gui: sanitize 'exec' arguments: background
+      git-gui: remove option --stderr from git_read
+      git-gui: break out a separate function git_read_nice
+      git-gui: use git_read in githook_read
+      gitk: sanitize 'open' arguments: revisit recently updated 'open' calls
+      git-gui: convert git_read*, git_write to be non-variadic
+      git-gui: pass redirections as separate argument to _open_stdout_stderr
+      git-gui: pass redirections as separate argument to git_read
+      git-gui: introduce function git_redir for git calls with redirections
+      git-gui: do not mistake command arguments as redirection operators
+      git-gui: sanitize 'exec' arguments: convert new 'cygpath' calls
+
+Justin Tobler (1):
+      config: quote values containing CR character
+
+Mark Levedahl (13):
+      git-gui: _which, only add .exe suffix if not present
+      git-gui: use [is_Windows], not bad _shellpath
+      git-gui: make _shellpath usable on startup
+      git-gui: remove Tcl 8.4 workaround on 2>@1 redirection
+      git-gui: use only the configured shell
+      git-gui: remove HEAD detachment implementation for git < 1.5.3
+      git-gui: remove unused proc is_shellscript
+      git-gui: avoid auto_execok for git-bash menu item
+      git-gui: avoid auto_execok in do_windows_shortcut
+      git-gui: cleanup git-bash menu item
+      git-gui: assure PATH has only absolute elements.
+      git-gui: sanitize $PATH on all platforms
+      git-gui: override exec and open only on Windows
+
+Patrick Steinhardt' via Git Security (1):
+      bundle-uri: fix arbitrary file writes via parameter injection
+
+Taylor Blau (2):
+      wincred: avoid buffer overflow in wcsncat()
+      Git 2.43.7
+
+
+Version v2.43.6; changes since v2.43.5:
+---------------------------------------
+
+Johannes Schindelin (8):
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+      Git 2.41.3
+      Git 2.42.4
+      Git 2.43.6
+
+Junio C Hamano (2):
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+
+Patrick Steinhardt (1):
+      t7300: work around platform-specific behaviour with long paths on MinGW
 
 
 Version v2.43.5; changes since v2.43.4:
@@ -5938,7 +7270,7 @@ brian m. carlson (1):
       merge-file: add an option to process object IDs
 
 
-Version v2.43.0-rc0; changes since v2.42.3:
+Version v2.43.0-rc0; changes since v2.42.4:
 -------------------------------------------
 
 Alyssa Ross (1):
@@ -6334,6 +7666,26 @@ brian m. carlson (1):
       doc: correct the 50 characters soft limit (+)
 
 
+Version v2.42.4; changes since v2.42.3:
+---------------------------------------
+
+Johannes Schindelin (7):
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+      Git 2.41.3
+      Git 2.42.4
+
+Junio C Hamano (2):
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+
+Patrick Steinhardt (1):
+      t7300: work around platform-specific behaviour with long paths on MinGW
+
+
 Version v2.42.3; changes since v2.42.2:
 ---------------------------------------
 
@@ -6675,7 +8027,7 @@ brian m. carlson (2):
       gitignore: ignore clangd .cache directory
 
 
-Version v2.42.0-rc0; changes since v2.41.2:
+Version v2.42.0-rc0; changes since v2.41.3:
 -------------------------------------------
 
 Alejandro R. Sedeño (1):
@@ -7163,6 +8515,25 @@ brian m. carlson (7):
       var: add config file locations
 
 
+Version v2.41.3; changes since v2.41.2:
+---------------------------------------
+
+Johannes Schindelin (6):
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+      Git 2.41.3
+
+Junio C Hamano (2):
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+
+Patrick Steinhardt (1):
+      t7300: work around platform-specific behaviour with long paths on MinGW
+
+
 Version v2.41.2; changes since v2.41.1:
 ---------------------------------------
 
@@ -7334,7 +8705,7 @@ brian m. carlson (1):
       upload-pack: advertise capabilities when cloning empty repos
 
 
-Version v2.41.0-rc0; changes since v2.40.3:
+Version v2.41.0-rc0; changes since v2.40.4:
 -------------------------------------------
 
 Adam Johnson (1):
@@ -7919,6 +9290,24 @@ ZheNing Hu (2):
 Øystein Walle (2):
       ref-filter: remove unused ref_format member
       branch, for-each-ref, tag: add option to omit empty lines
+
+
+Version v2.40.4; changes since v2.40.3:
+---------------------------------------
+
+Johannes Schindelin (5):
+      mingw: drop bogus (and unneeded) declaration of `_pgmptr`
+      credential_format(): also encode <host>[:<port>]
+      credential: sanitize the user prompt
+      credential: disallow Carriage Returns in the protocol by default
+      Git 2.40.4
+
+Junio C Hamano (2):
+      ci: remove 'Upload failed tests' directories' step from linux32 jobs
+      compat/regex: fix argument order to calloc(3)
+
+Patrick Steinhardt (1):
+      t7300: work around platform-specific behaviour with long paths on MinGW
 
 
 Version v2.40.3; changes since v2.40.2:

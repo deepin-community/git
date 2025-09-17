@@ -1,3 +1,13 @@
+git (1:2.51.0-1) unstable; urgency=low
+
+  * new upstream release (see RelNotes/2.51.0.adoc).
+  * debian/rules: remove git-mediawiki package, removed upstream.
+  * debian/rules, debian/git.install, debian/git.links: remove
+    references to contrib/emacs and contrib/hooks.
+  * update debian/copyright.
+
+ -- Jonathan Nieder <jrnieder@gmail.com>  Tue, 26 Aug 2025 16:36:40 +0200
+
 git (1:2.50.1-0.1) unstable; urgency=medium
 
   * Non-maintainer upload.

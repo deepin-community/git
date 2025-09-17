@@ -82,13 +82,10 @@ override_dh_auto_test-arch:
 override_dh_auto_build-indep: build-stamp
 	# git-man, git-doc
 	$(MAKE) -CDocumentation man $(DOCS) $(DOC_OPTS)
-	# git-mediawiki
-	$(MAKE) -Ccontrib/mw-to-git all $(OPTS)
 
 override_dh_auto_test-indep:
 
 override_dh_auto_clean:
-	$(MAKE) -C contrib/mw-to-git clean $(OPTS)
 	$(MAKE) -C contrib/subtree clean $(OPTS)
 	$(MAKE) clean $(OPTS)
 	rm -f git-subtree
@@ -121,8 +118,6 @@ override_dh_auto_install-arch:
 
 override_dh_auto_install-indep:
 	DESTDIR='$(TMP)' $(MAKE) install install-doc $(OPTS)
-	DESTDIR='$(TMP)' $(MAKE) -Ccontrib/mw-to-git install $(OPTS) \
-	  INSTLIBDIR=/usr/share/perl5
 	test -z '$(DOCS)' || \
 	  $(MAKE) -CDocumentation install-webdoc WEBDOC_DEST='$(TMP)'/html \
 	  2>/dev/null
@@ -136,7 +131,6 @@ override_dh_auto_install-indep:
 
 override_dh_install-arch:
 	dh_install --arch
-	rm -rf '$(GIT)'/usr/share/git-core/contrib/hooks/multimail
 
 override_dh_install-indep:
 	dh_install --indep
@@ -148,9 +142,6 @@ override_dh_install-indep:
 override_dh_installdocs-arch:
 	dh_installdocs --arch -X.gitignore
 	rm -rf '$(GIT)'/usr/share/doc/git/contrib/completion
-	rm -rf '$(GIT)'/usr/share/doc/git/contrib/emacs
-	rm -rf '$(GIT)'/usr/share/doc/git/contrib/hooks
-	rm -rf '$(GIT)'/usr/share/doc/git/contrib/mw-to-git
 	rm -f '$(GIT)'/usr/share/doc/git/contrib/subtree/git-subtree.1
 	rm -f '$(GIT)'/usr/share/doc/git/contrib/subtree/git-subtree.html
 	rm -f '$(GIT)'/usr/share/doc/git/contrib/subtree/git-subtree.xml
