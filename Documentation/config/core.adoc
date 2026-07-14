@@ -75,8 +75,8 @@ The built-in file system monitor is currently available only on a
 limited set of supported platforms.  Currently, this includes Windows
 and MacOS.
 +
-	Otherwise, this variable contains the pathname of the "fsmonitor"
-	hook command.
+Otherwise, this variable contains the pathname of the "fsmonitor"
+hook command.
 +
 This hook command is used to identify all files that may have changed
 since the requested date/time. This information is used to speed up
@@ -290,6 +290,9 @@ core.preferSymlinkRefs::
 	and other symbolic reference files, use symbolic links.
 	This is sometimes needed to work with old scripts that
 	expect HEAD to be a symbolic link.
++
+This configuration is deprecated and will be removed in Git 3.0. Symbolic refs
+will always be written as textual symrefs.
 
 core.alternateRefsCommand::
 	When advertising tips of available history from an alternate, use the shell to
@@ -489,10 +492,9 @@ core.askPass::
 	command-line argument and write the password on its STDOUT.
 
 core.attributesFile::
-	In addition to `.gitattributes` (per-directory) and
-	`.git/info/attributes`, Git looks into this file for attributes
-	(see linkgit:gitattributes[5]). Path expansions are made the same
-	way as for `core.excludesFile`. Its default value is
+	Specifies the pathname to the file that contains attributes (see
+	linkgit:gitattributes[5]), in addition to `.gitattributes` (per-directory)
+	and `.git/info/attributes`. Its default value is
 	`$XDG_CONFIG_HOME/git/attributes`. If `$XDG_CONFIG_HOME` is either not
 	set or empty, `$HOME/.config/git/attributes` is used instead.
 
@@ -531,9 +533,25 @@ core.commentString::
 	commented, and removes them after the editor returns
 	(default '#').
 +
-If set to "auto", `git-commit` would select a character that is not
+ifndef::with-breaking-changes[]
+If set to "auto", `git-commit` will select a character that is not
 the beginning character of any line in existing commit messages.
+Support for this value is deprecated and will be removed in Git 3.0
+due to the following limitations:
 +
+--
+* It is incompatible with adding comments in a commit message
+  template. This includes the conflicts comments added to
+  the commit message by `cherry-pick`, `merge`, `rebase` and
+  `revert`.
+* It is incompatible with adding comments to the commit message
+  in the `prepare-commit-msg` hook.
+* It is incompatible with the `fixup` and `squash` commands when
+  rebasing,
+* It is not respected by `git notes`
+--
++
+endif::with-breaking-changes[]
 Note that these two variables are aliases of each other, and in modern
 versions of Git you are free to use a string (e.g., `//` or `⁑⁕⁑`) with
 `commentChar`. Versions of Git prior to v2.45.0 will ignore
@@ -610,6 +628,8 @@ core.whitespace::
   part of the line terminator, i.e. with it, `trailing-space`
   does not trigger if the character before such a carriage-return
   is not a whitespace (not enabled by default).
+* `incomplete-line` treats the last line of a file that is missing the
+  newline at the end as an error (not enabled by default).
 * `tabwidth=<n>` tells how many character positions a tab occupies; this
   is relevant for `indent-with-non-tab` and when Git fixes `tab-in-indent`
   errors. The default tab width is 8. Allowed values are 1 to 63.

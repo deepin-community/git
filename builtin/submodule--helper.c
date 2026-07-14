@@ -593,16 +593,12 @@ static void print_status(unsigned int flags, char state, const char *path,
 	printf("\n");
 }
 
-static int handle_submodule_head_ref(const char *refname UNUSED,
-				     const char *referent UNUSED,
-				     const struct object_id *oid,
-				     int flags UNUSED,
-				     void *cb_data)
+static int handle_submodule_head_ref(const struct reference *ref, void *cb_data)
 {
 	struct object_id *output = cb_data;
 
-	if (oid)
-		oidcpy(output, oid);
+	if (ref->oid)
+		oidcpy(output, ref->oid);
 
 	return 0;
 }
@@ -616,9 +612,6 @@ static void status_submodule(const char *path, const struct object_id *ce_oid,
 	struct rev_info rev = REV_INFO_INIT;
 	struct strbuf buf = STRBUF_INIT;
 	const char *git_dir;
-	struct setup_revision_opt opt = {
-		.free_removed_argv_elements = 1,
-	};
 
 	if (validate_submodule_path(path) < 0)
 		die(NULL);
@@ -655,7 +648,7 @@ static void status_submodule(const char *path, const struct object_id *ce_oid,
 
 	repo_init_revisions(the_repository, &rev, NULL);
 	rev.abbrev = 0;
-	setup_revisions(diff_files_args.nr, diff_files_args.v, &rev, &opt);
+	setup_revisions_from_strvec(&diff_files_args, &rev, NULL);
 	run_diff_files(&rev, 0);
 
 	if (!diff_result_code(&rev)) {
@@ -1094,9 +1087,6 @@ static int compute_summary_module_list(struct object_id *head_oid,
 {
 	struct strvec diff_args = STRVEC_INIT;
 	struct rev_info rev;
-	struct setup_revision_opt opt = {
-		.free_removed_argv_elements = 1,
-	};
 	struct module_cb_list list = MODULE_CB_LIST_INIT;
 	int ret = 0;
 
@@ -1114,7 +1104,7 @@ static int compute_summary_module_list(struct object_id *head_oid,
 	repo_init_revisions(the_repository, &rev, info->prefix);
 	rev.abbrev = 0;
 	precompose_argv_prefix(diff_args.nr, diff_args.v, NULL);
-	setup_revisions(diff_args.nr, diff_args.v, &rev, &opt);
+	setup_revisions_from_strvec(&diff_args, &rev, NULL);
 	rev.diffopt.output_format = DIFF_FORMAT_NO_OUTPUT | DIFF_FORMAT_CALLBACK;
 	rev.diffopt.format_callback = submodule_summary_callback;
 	rev.diffopt.format_callback_data = &list;
@@ -1913,6 +1903,13 @@ static int determine_submodule_update_strategy(struct repository *r,
 	const char *val;
 	int ret;
 
+	/*
+	 * NEEDSWORK: audit and ensure that update_submodule() has right
+	 * to assume that submodule_from_path() above will always succeed.
+	 */
+	if (!sub)
+		BUG("update_submodule assumes a submodule exists at path (%s)",
+		    path);
 	key = xstrfmt("submodule.%s.update", sub->name);
 
 	if (update) {
@@ -3537,14 +3534,15 @@ static int module_add(int argc, const char **argv, const char *prefix,
 		}
 	}
 
-	if(!add_data.sm_name)
+	if (!add_data.sm_name)
 		add_data.sm_name = add_data.sm_path;
 
 	existing = submodule_from_name(the_repository,
 					null_oid(the_hash_algo),
 					add_data.sm_name);
 
-	if (existing && strcmp(existing->path, add_data.sm_path)) {
+	if (existing && existing->path &&
+	    strcmp(existing->path, add_data.sm_path)) {
 		if (!force) {
 			die(_("submodule name '%s' already used for path '%s'"),
 			    add_data.sm_name, existing->path);

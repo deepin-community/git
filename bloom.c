@@ -354,7 +354,7 @@ static void init_truncated_large_filter(struct bloom_filter *filter,
 
 static int has_entries_with_high_bit(struct repository *r, struct tree *t)
 {
-	if (parse_tree(t))
+	if (repo_parse_tree(r, t))
 		return 1;
 
 	if (!(t->object.flags & VISITED)) {
@@ -452,10 +452,12 @@ struct bloom_filter *get_or_compute_bloom_filter(struct repository *r,
 	filter = bloom_filter_slab_at(&bloom_filters, c);
 
 	if (!filter->data) {
+		struct commit_graph *g;
 		uint32_t graph_pos;
-		if (repo_find_commit_pos_in_graph(r, c, &graph_pos))
-			load_bloom_filter_from_graph(r->objects->commit_graph,
-						     filter, graph_pos);
+
+		g = repo_find_commit_pos_in_graph(r, c, &graph_pos);
+		if (g)
+			load_bloom_filter_from_graph(g, filter, graph_pos);
 	}
 
 	if (filter->data && filter->len) {

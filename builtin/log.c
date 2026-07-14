@@ -16,6 +16,7 @@
 #include "refs.h"
 #include "object-name.h"
 #include "odb.h"
+#include "odb/streaming.h"
 #include "pager.h"
 #include "color.h"
 #include "commit.h"
@@ -35,7 +36,6 @@
 #include "parse-options.h"
 #include "line-log.h"
 #include "branch.h"
-#include "streaming.h"
 #include "version.h"
 #include "mailmap.h"
 #include "progress.h"
@@ -543,7 +543,13 @@ int cmd_whatchanged(int argc,
 	cmd_log_init(argc, argv, prefix, &rev, &opt, &cfg);
 
 	if (!cfg.i_still_use_this)
-		you_still_use_that("git whatchanged");
+		you_still_use_that("git whatchanged",
+				   _("\n"
+				     "hint: You can replace 'git whatchanged <opts>' with:\n"
+				     "hint:\tgit log <opts> --raw --no-merges\n"
+				     "hint: Or make an alias:\n"
+				     "hint:\tgit config set --global alias.whatchanged 'log --raw --no-merges'\n"
+				     "\n"));
 
 	if (!rev.diffopt.output_format)
 		rev.diffopt.output_format = DIFF_FORMAT_RAW;
@@ -578,7 +584,7 @@ static int show_blob_object(const struct object_id *oid, struct rev_info *rev, c
 	fflush(rev->diffopt.file);
 	if (!rev->diffopt.flags.textconv_set_via_cmdline ||
 	    !rev->diffopt.flags.allow_textconv)
-		return stream_blob_to_fd(1, oid, NULL, 0);
+		return odb_stream_blob_to_fd(the_repository->objects, 1, oid, NULL, 0);
 
 	if (get_oid_with_context(the_repository, obj_name,
 				 GET_OID_RECORD_PATH,
@@ -588,7 +594,7 @@ static int show_blob_object(const struct object_id *oid, struct rev_info *rev, c
 	    !textconv_object(the_repository, obj_context.path,
 			     obj_context.mode, &oidc, 1, &buf, &size)) {
 		object_context_release(&obj_context);
-		return stream_blob_to_fd(1, oid, NULL, 0);
+		return odb_stream_blob_to_fd(the_repository->objects, 1, oid, NULL, 0);
 	}
 
 	if (!buf)
@@ -1400,12 +1406,12 @@ static void make_cover_letter(struct rev_info *rev, int use_separate_file,
 		 * can be added later if deemed desirable.
 		 */
 		struct diff_options opts;
-		struct strvec other_arg = STRVEC_INIT;
 		struct range_diff_options range_diff_opts = {
 			.creation_factor = rev->creation_factor,
 			.dual_color = 1,
+			.max_memory = RANGE_DIFF_MAX_MEMORY_DEFAULT,
 			.diffopt = &opts,
-			.other_arg = &other_arg
+			.log_arg = &rev->rdiff_log_arg
 		};
 
 		repo_diff_setup(the_repository, &opts);
@@ -1413,9 +1419,7 @@ static void make_cover_letter(struct rev_info *rev, int use_separate_file,
 		opts.use_color = rev->diffopt.use_color;
 		diff_setup_done(&opts);
 		fprintf_ln(rev->diffopt.file, "%s", rev->rdiff_title);
-		get_notes_args(&other_arg, rev);
 		show_range_diff(rev->rdiff1, rev->rdiff2, &range_diff_opts);
-		strvec_clear(&other_arg);
 	}
 }
 
@@ -1892,11 +1896,11 @@ int cmd_format_patch(int argc,
 {
 	struct format_config cfg;
 	struct commit *commit;
-	struct commit **list = NULL;
+	struct commit_stack list = COMMIT_STACK_INIT;
 	struct rev_info rev;
 	char *to_free = NULL;
 	struct setup_revision_opt s_r_opt;
-	size_t nr = 0, total, i;
+	size_t total, i;
 	int use_stdout = 0;
 	int start_number = -1;
 	int just_numbers = 0;
@@ -2279,14 +2283,12 @@ int cmd_format_patch(int argc,
 		if (ignore_if_in_upstream && has_commit_patch_id(commit, &ids))
 			continue;
 
-		nr++;
-		REALLOC_ARRAY(list, nr);
-		list[nr - 1] = commit;
+		commit_stack_push(&list, commit);
 	}
-	if (nr == 0)
+	if (!list.nr)
 		/* nothing to do */
 		goto done;
-	total = nr;
+	total = list.nr;
 	if (cover_letter == -1) {
 		if (cfg.config_cover_letter == COVER_AUTO)
 			cover_letter = (total > 1);
@@ -2304,7 +2306,7 @@ int cmd_format_patch(int argc,
 		if (!cover_letter && total != 1)
 			die(_("--interdiff requires --cover-letter or single patch"));
 		rev.idiff_oid1 = &idiff_prev.oid[idiff_prev.nr - 1];
-		rev.idiff_oid2 = get_commit_tree_oid(list[0]);
+		rev.idiff_oid2 = get_commit_tree_oid(list.items[0]);
 		rev.idiff_title = diff_title(&idiff_title, reroll_count,
 					     _("Interdiff:"),
 					     _("Interdiff against v%d:"));
@@ -2320,13 +2322,14 @@ int cmd_format_patch(int argc,
 			die(_("--range-diff requires --cover-letter or single patch"));
 
 		infer_range_diff_ranges(&rdiff1, &rdiff2, rdiff_prev,
-					origin, list[0]);
+					origin, list.items[0]);
 		rev.rdiff1 = rdiff1.buf;
 		rev.rdiff2 = rdiff2.buf;
 		rev.creation_factor = creation_factor;
 		rev.rdiff_title = diff_title(&rdiff_title, reroll_count,
 					     _("Range-diff:"),
 					     _("Range-diff against v%d:"));
+		get_notes_args(&(rev.rdiff_log_arg), &rev);
 	}
 
 	/*
@@ -2355,11 +2358,11 @@ int cmd_format_patch(int argc,
 	}
 
 	memset(&bases, 0, sizeof(bases));
-	base = get_base_commit(&cfg, list, nr);
+	base = get_base_commit(&cfg, list.items, list.nr);
 	if (base) {
 		reset_revision_walk();
 		clear_object_flags(the_repository, UNINTERESTING);
-		prepare_bases(&bases, base, list, nr);
+		prepare_bases(&bases, base, list.items, list.nr);
 	}
 
 	if (in_reply_to || cfg.thread || cover_letter) {
@@ -2376,7 +2379,8 @@ int cmd_format_patch(int argc,
 		if (cfg.thread)
 			gen_message_id(&rev, "cover");
 		make_cover_letter(&rev, !!output_directory,
-				  origin, nr, list, description_file, branch_name, quiet, &cfg);
+				  origin, list.nr, list.items,
+				  description_file, branch_name, quiet, &cfg);
 		print_bases(&bases, rev.diffopt.file);
 		print_signature(signature, rev.diffopt.file);
 		total++;
@@ -2390,12 +2394,12 @@ int cmd_format_patch(int argc,
 	if (show_progress)
 		progress = start_delayed_progress(the_repository,
 						  _("Generating patches"), total);
-	for (i = 0; i < nr; i++) {
-		size_t idx = nr - i - 1;
+	while (list.nr) {
+		size_t idx = list.nr - 1;
 		int shown;
 
 		display_progress(progress, total - idx);
-		commit = list[idx];
+		commit = commit_stack_pop(&list);
 		rev.nr = total - idx + (start_number - 1);
 
 		/* Make the second and subsequent mails replies to the first */
@@ -2464,7 +2468,7 @@ int cmd_format_patch(int argc,
 		}
 	}
 	stop_progress(&progress);
-	free(list);
+	commit_stack_clear(&list);
 	if (ignore_if_in_upstream)
 		free_patch_ids(&ids);
 
@@ -2486,6 +2490,7 @@ done:
 	rev.diffopt.no_free = 0;
 	release_revisions(&rev);
 	format_config_release(&cfg);
+	strvec_clear(&rev.rdiff_log_arg);
 	return 0;
 }
 

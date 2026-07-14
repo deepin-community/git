@@ -316,9 +316,14 @@ struct merge_options_internal {
 	 *     (e.g. "drivers/firmware/raspberrypi.c").
 	 *   * store all relevant paths in the repo, both directories and
 	 *     files (e.g. drivers, drivers/firmware would also be included)
-	 *   * these keys serve to intern all the path strings, which allows
-	 *     us to do pointer comparison on directory names instead of
-	 *     strcmp; we just have to be careful to use the interned strings.
+	 *   * these keys serve to intern *all* path strings, which allows us
+	 *     to do pointer comparisons on file & directory names instead of
+	 *     using strcmp; however, for this pointer-comparison optimization
+	 *     to work, any code path that independently computes a path needs
+	 *     to check for it existing in this strmap, and if so, point to
+	 *     the path in this strmap instead of their computed copy.  See
+	 *     the "reuse known pointer" comment in
+	 *     apply_directory_rename_modifications() for an example.
 	 *
 	 * The values of paths:
 	 *   * either a pointer to a merged_info, or a conflict_info struct
@@ -1497,11 +1502,44 @@ static void resolve_trivial_directory_merge(struct conflict_info *ci, int side)
 	VERIFY_CI(ci);
 	assert((side == 1 && ci->match_mask == 5) ||
 	       (side == 2 && ci->match_mask == 3));
+
+	/*
+	 * Since ci->stages[0] matches ci->stages[3-side], resolve merge in
+	 * favor of ci->stages[side].
+	 */
 	oidcpy(&ci->merged.result.oid, &ci->stages[side].oid);
 	ci->merged.result.mode = ci->stages[side].mode;
 	ci->merged.is_null = is_null_oid(&ci->stages[side].oid);
+
+	/*
+	 * Because we resolved in favor of "side", we are no longer
+	 * considering the paths which matched (i.e. had the same hash) any
+	 * more.  Strip the matching paths from both dirmask & filemask.
+	 * Another consequence of merging in favor of side is that we can no
+	 * longer have a directory/file conflict either..but there's a slight
+	 * nuance we consider before clearing it.
+	 *
+	 * In most cases, resolving in favor of the other side means there's
+	 * no conflict at all, but if we had a directory/file conflict to
+	 * start, and the directory is resolved away, the remaining file could
+	 * still be part of a rename.  If the remaining file is part of a
+	 * rename, then it may also be part of a rename conflict (e.g.
+	 * rename/delete or rename/rename(1to2)), so we can't
+	 * mark it as a clean merge if we started with a directory/file
+	 * conflict and still have a file left.
+	 *
+	 * In contrast, if we started with a directory/file conflict and
+	 * still have a directory left, no file under that directory can be
+	 * part of a rename, otherwise we would have had to recurse into the
+	 * directory and would have never ended up within
+	 * resolve_trivial_directory_merge() for that directory.
+	 */
+	ci->dirmask &= (~ci->match_mask);
+	ci->filemask &= (~ci->match_mask);
+	assert(!ci->filemask || !ci->dirmask);
 	ci->match_mask = 0;
-	ci->merged.clean = 1; /* (ci->filemask == 0); */
+	ci->merged.clean = !ci->df_conflict || ci->dirmask;
+	ci->df_conflict = 0;
 }
 
 static int handle_deferred_entries(struct merge_options *opt,
@@ -1694,9 +1732,9 @@ static int collect_merge_info(struct merge_options *opt,
 	info.data = opt;
 	info.show_all_errors = 1;
 
-	if (parse_tree(merge_base) < 0 ||
-	    parse_tree(side1) < 0 ||
-	    parse_tree(side2) < 0)
+	if (repo_parse_tree(the_repository, merge_base) < 0 ||
+	    repo_parse_tree(the_repository, side1) < 0 ||
+	    repo_parse_tree(the_repository, side2) < 0)
 		return -1;
 	init_tree_desc(t + 0, &merge_base->object.oid,
 		       merge_base->buffer, merge_base->size);
@@ -2163,7 +2201,7 @@ static int handle_content_merge(struct merge_options *opt,
 		/*
 		 * FIXME: If opt->priv->call_depth && !clean, then we really
 		 * should not make result->mode match either a->mode or
-		 * b->mode; that causes t6036 "check conflicting mode for
+		 * b->mode; that causes t6416 "check conflicting mode for
 		 * regular file" to fail.  It would be best to use some other
 		 * mode, but we'll confuse all kinds of stuff if we use one
 		 * where S_ISREG(result->mode) isn't true, and if we use
@@ -2313,14 +2351,20 @@ static char *apply_dir_rename(struct strmap_entry *rename_info,
 	return strbuf_detach(&new_path, NULL);
 }
 
-static int path_in_way(struct strmap *paths, const char *path, unsigned side_mask)
+static int path_in_way(struct strmap *paths,
+		       const char *path,
+		       unsigned side_mask,
+		       struct diff_filepair *p)
 {
 	struct merged_info *mi = strmap_get(paths, path);
 	struct conflict_info *ci;
 	if (!mi)
 		return 0;
 	INITIALIZE_CI(ci, mi);
-	return mi->clean || (side_mask & (ci->filemask | ci->dirmask));
+	return mi->clean || (side_mask & (ci->filemask | ci->dirmask))
+	  /* See testcases 12[npq] of t6423 for this next condition */
+			 || ((ci->filemask & 0x01) &&
+			     strcmp(p->one->path, path));
 }
 
 /*
@@ -2332,6 +2376,7 @@ static int path_in_way(struct strmap *paths, const char *path, unsigned side_mas
 static char *handle_path_level_conflicts(struct merge_options *opt,
 					 const char *path,
 					 unsigned side_index,
+					 struct diff_filepair *p,
 					 struct strmap_entry *rename_info,
 					 struct strmap *collisions)
 {
@@ -2366,7 +2411,7 @@ static char *handle_path_level_conflicts(struct merge_options *opt,
 	 */
 	if (c_info->reported_already) {
 		clean = 0;
-	} else if (path_in_way(&opt->priv->paths, new_path, 1 << side_index)) {
+	} else if (path_in_way(&opt->priv->paths, new_path, 1 << side_index, p)) {
 		c_info->reported_already = 1;
 		strbuf_add_separated_string_list(&collision_paths, ", ",
 						 &c_info->source_files);
@@ -2520,7 +2565,7 @@ static void compute_collisions(struct strmap *collisions,
 	 * happening, and fall back to no-directory-rename detection
 	 * behavior for those paths.
 	 *
-	 * See testcases 9e and all of section 5 from t6043 for examples.
+	 * See testcases 9e and all of section 5 from t6423 for examples.
 	 */
 	for (i = 0; i < pairs->nr; ++i) {
 		struct strmap_entry *rename_info;
@@ -2573,6 +2618,7 @@ static void free_collisions(struct strmap *collisions)
 static char *check_for_directory_rename(struct merge_options *opt,
 					const char *path,
 					unsigned side_index,
+					struct diff_filepair *p,
 					struct strmap *dir_renames,
 					struct strmap *dir_rename_exclusions,
 					struct strmap *collisions,
@@ -2580,7 +2626,6 @@ static char *check_for_directory_rename(struct merge_options *opt,
 {
 	char *new_path;
 	struct strmap_entry *rename_info;
-	struct strmap_entry *otherinfo;
 	const char *new_dir;
 	int other_side = 3 - side_index;
 
@@ -2615,14 +2660,13 @@ static char *check_for_directory_rename(struct merge_options *opt,
 	 * to not let Side1 do the rename to dumbdir, since we know that is
 	 * the source of one of our directory renames.
 	 *
-	 * That's why otherinfo and dir_rename_exclusions is here.
+	 * That's why dir_rename_exclusions is here.
 	 *
 	 * As it turns out, this also prevents N-way transient rename
-	 * confusion; See testcases 9c and 9d of t6043.
+	 * confusion; See testcases 9c and 9d of t6423.
 	 */
 	new_dir = rename_info->value; /* old_dir = rename_info->key; */
-	otherinfo = strmap_get_entry(dir_rename_exclusions, new_dir);
-	if (otherinfo) {
+	if (strmap_contains(dir_rename_exclusions, new_dir)) {
 		path_msg(opt, INFO_DIR_RENAME_SKIPPED_DUE_TO_RERENAME, 1,
 			 rename_info->key, path, new_dir, NULL,
 			 _("WARNING: Avoiding applying %s -> %s rename "
@@ -2631,7 +2675,7 @@ static char *check_for_directory_rename(struct merge_options *opt,
 		return NULL;
 	}
 
-	new_path = handle_path_level_conflicts(opt, path, side_index,
+	new_path = handle_path_level_conflicts(opt, path, side_index, p,
 					       rename_info,
 					       &collisions[side_index]);
 	*clean_merge &= (new_path != NULL);
@@ -2876,6 +2920,20 @@ static int process_renames(struct merge_options *opt,
 		}
 
 		/*
+		 * Directory renames can result in rename-to-self; the code
+		 * below assumes we have A->B with different A & B, and tries
+		 * to move all entries to path B.  If A & B are the same path,
+		 * the logic can get confused, so skip further processing when
+		 * A & B are already the same path.
+		 *
+		 * As a reminder, we can avoid strcmp here because all paths
+		 * are interned in opt->priv->paths; see the comment above
+		 * "paths" in struct merge_options_internal.
+		 */
+		if (oldpath == newpath)
+			continue;
+
+		/*
 		 * If pair->one->path isn't in opt->priv->paths, that means
 		 * that either directory rename detection removed that
 		 * path, or a parent directory of oldpath was resolved and
@@ -2885,6 +2943,32 @@ static int process_renames(struct merge_options *opt,
 		 * the rename and can skip it.
 		 */
 		if (!oldinfo || oldinfo->merged.clean)
+			continue;
+
+		/*
+		 * Rename caching from a previous commit might give us an
+		 * irrelevant rename for the current commit.
+		 *
+		 * Imagine:
+		 *     foo/A -> bar/A
+		 * was a cached rename for the upstream side from the
+		 * previous commit (without the directories being renamed),
+		 * but the next commit being replayed
+		 *     * does NOT add or delete files
+		 *     * does NOT have directory renames
+		 *     * does NOT modify any files under bar/
+		 *     * does NOT modify foo/A
+		 *     * DOES modify other files under foo/ (otherwise the
+		 *       !oldinfo check above would have already exited for
+		 *       us)
+		 * In such a case, our trivial directory resolution will
+		 * have already merged bar/, and our attempt to process
+		 * the cached
+		 *     foo/A -> bar/A
+		 * would be counterproductive, and lack the necessary
+		 * information anyway.  Skip such renames.
+		 */
+		if (!newinfo)
 			continue;
 
 		/*
@@ -3413,13 +3497,13 @@ static int collect_renames(struct merge_options *opt,
 			continue;
 		}
 		if (opt->detect_directory_renames == MERGE_DIRECTORY_RENAMES_NONE &&
-		    p->status == 'R' && 1) {
+		    p->status == 'R') {
 			possibly_cache_new_pair(renames, p, side_index, NULL);
 			goto skip_directory_renames;
 		}
 
 		new_path = check_for_directory_rename(opt, p->two->path,
-						      side_index,
+						      side_index, p,
 						      dir_renames_for_side,
 						      rename_exclusions,
 						      collisions,
@@ -4535,10 +4619,10 @@ static int checkout(struct merge_options *opt,
 	unpack_opts.verbose_update = (opt->verbosity > 2);
 	unpack_opts.fn = twoway_merge;
 	unpack_opts.preserve_ignored = 0; /* FIXME: !opts->overwrite_ignore */
-	if (parse_tree(prev) < 0)
+	if (repo_parse_tree(the_repository, prev) < 0)
 		return -1;
 	init_tree_desc(&trees[0], &prev->object.oid, prev->buffer, prev->size);
-	if (parse_tree(next) < 0)
+	if (repo_parse_tree(the_repository, next) < 0)
 		return -1;
 	init_tree_desc(&trees[1], &next->object.oid, next->buffer, next->size);
 
@@ -5093,7 +5177,8 @@ static void merge_check_renames_reusable(struct merge_options *opt,
 	 * optimization" comment near that case).
 	 *
 	 * This could be revisited in the future; see the commit message
-	 * where this comment was added for some possible pointers.
+	 * where this comment was added for some possible pointers, or the
+	 * later commit where this comment was added.
 	 */
 	if (opt->detect_directory_renames == MERGE_DIRECTORY_RENAMES_NONE) {
 		renames->cached_pairs_valid_side = 0; /* neither side valid */
@@ -5195,7 +5280,8 @@ redo:
 
 	if (result->clean >= 0) {
 		if (!opt->mergeability_only) {
-			result->tree = parse_tree_indirect(&working_tree_oid);
+			result->tree = repo_parse_tree_indirect(the_repository,
+								&working_tree_oid);
 			if (!result->tree)
 				die(_("unable to read tree (%s)"),
 				    oid_to_hex(&working_tree_oid));
@@ -5471,7 +5557,6 @@ int parse_merge_opt(struct merge_options *opt, const char *s)
 		if (value < 0)
 			return -1;
 		/* clear out previous settings */
-		DIFF_XDL_CLR(opt, NEED_MINIMAL);
 		opt->xdl_opts &= ~XDF_DIFF_ALGORITHM_MASK;
 		opt->xdl_opts |= value;
 	}

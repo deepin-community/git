@@ -1091,7 +1091,7 @@ int cmd_grep(int argc,
 	if (show_in_pager == default_pager)
 		show_in_pager = git_pager(the_repository, 1);
 	if (show_in_pager) {
-		opt.color = 0;
+		opt.color = GIT_COLOR_NEVER;
 		opt.name_only = 1;
 		opt.null_following_name = 1;
 		opt.output_priv = &path_list;
@@ -1213,8 +1213,14 @@ int cmd_grep(int argc,
 		 */
 		if (recurse_submodules)
 			repo_read_gitmodules(the_repository, 1);
-		if (startup_info->have_repository)
-			(void)get_packed_git(the_repository);
+
+		if (startup_info->have_repository) {
+			struct odb_source *source;
+
+			odb_prepare_alternates(the_repository->objects);
+			for (source = the_repository->objects->sources; source; source = source->next)
+				packfile_store_prepare(source->packfiles);
+		}
 
 		start_threads(&opt);
 	} else {

@@ -61,10 +61,31 @@ OPTIONS
 	currently impacts only the `export-marks`, `import-marks`, and
 	`import-marks-if-exists` feature commands.
 +
-	Only enable this option if you trust the program generating the
-	fast-import stream! This option is enabled automatically for
-	remote-helpers that use the `import` capability, as they are
-	already trusted to run their own code.
+Only enable this option if you trust the program generating the
+fast-import stream! This option is enabled automatically for
+remote-helpers that use the `import` capability, as they are
+already trusted to run their own code.
+
+`--signed-tags=(verbatim|warn-verbatim|warn-strip|strip|abort)`::
+	Specify how to handle signed tags. Behaves in the same way as
+	the `--signed-commits=<mode>` below, except that the
+	`strip-if-invalid` mode is not yet supported. Like for signed
+	commits, the default mode is `verbatim`.
+
+`--signed-commits=<mode>`::
+	Specify how to handle signed commits. The following <mode>s
+	are supported:
++
+* `verbatim`, which is the default, will silently import commit
+  signatures.
+* `warn-verbatim` will import them, but will display a warning.
+* `abort` will make this program die when encountering a signed
+  commit.
+* `strip` will silently make the commits unsigned.
+* `warn-strip` will make them unsigned, but will display a warning.
+* `strip-if-invalid` will check signatures and, if they are invalid,
+  will strip them and display a warning. The validation is performed
+  in the same way as linkgit:git-verify-commit[1] does it.
 
 Options for Frontends
 ~~~~~~~~~~~~~~~~~~~~~
@@ -111,7 +132,8 @@ Locations of Marks Files
 	Like --import-marks but instead of erroring out, silently
 	skips the file if it does not exist.
 
---[no-]relative-marks::
+--relative-marks::
+--no-relative-marks::
 	After specifying --relative-marks the paths specified
 	with --import-marks= and --export-marks= are relative
 	to an internal directory in the current repository.
@@ -605,9 +627,11 @@ Marks must be declared (via `mark`) before they can be used.
 
 The special case of restarting an incremental import from the
 current branch value should be written as:
+
 ----
 	from refs/heads/branch^0
 ----
+
 The `^0` suffix is necessary as fast-import does not permit a branch to
 start from itself, and the branch is created in memory before the
 `from` command is even read from the input.  Adding `^0` will force
@@ -644,7 +668,7 @@ External data format::
 +
 Here usually `<dataref>` must be either a mark reference (`:<idnum>`)
 set by a prior `blob` command, or a full 40-byte SHA-1 of an
-existing Git blob object.  If `<mode>` is `040000`` then
+existing Git blob object.  If `<mode>` is `040000` then
 `<dataref>` must be the full 40-byte SHA-1 of an existing
 Git tree object or a mark reference set with `--import-marks`.
 

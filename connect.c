@@ -240,6 +240,8 @@ static void process_capabilities(struct packet_reader *reader, size_t *linelen)
 	size_t nul_location = strlen(line);
 	if (nul_location == *linelen)
 		return;
+
+	free(server_capabilities_v1);
 	server_capabilities_v1 = xstrdup(line + nul_location + 1);
 	*linelen = nul_location;
 
@@ -407,7 +409,7 @@ static int process_ref_v2(struct packet_reader *reader, struct ref ***list,
 	 * name.  Subsequent fields (symref-target and peeled) are optional and
 	 * don't have a particular order.
 	 */
-	if (string_list_split(&line_sections, line, ' ', -1) < 2) {
+	if (string_list_split(&line_sections, line, " ", -1) < 2) {
 		ret = 0;
 		goto out;
 	}

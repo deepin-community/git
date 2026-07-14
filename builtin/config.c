@@ -261,6 +261,12 @@ struct strbuf_list {
 	int alloc;
 };
 
+/*
+ * Format the configuration key-value pair (`key_`, `value_`) and
+ * append it into strbuf `buf`.  Returns a negative value on failure,
+ * 0 on success, 1 on a missing optional value (i.e., telling the
+ * caller to pretend that <key_,value_> did not exist).
+ */
 static int format_config(const struct config_display_options *opts,
 			 struct strbuf *buf, const char *key_,
 			 const char *value_, const struct key_value_info *kvi)
@@ -299,7 +305,10 @@ static int format_config(const struct config_display_options *opts,
 			char *v;
 			if (git_config_pathname(&v, key_, value_) < 0)
 				return -1;
-			strbuf_addstr(buf, v);
+			if (v)
+				strbuf_addstr(buf, v);
+			else
+				return 1; /* :(optional)no-such-file */
 			free((char *)v);
 		} else if (opts->type == TYPE_EXPIRY_DATE) {
 			timestamp_t t;
@@ -344,6 +353,7 @@ static int collect_config(const char *key_, const char *value_,
 	struct collect_config_data *data = cb;
 	struct strbuf_list *values = data->values;
 	const struct key_value_info *kvi = ctx->kvi;
+	int status;
 
 	if (!(data->get_value_flags & GET_VALUE_KEY_REGEXP) &&
 	    strcmp(key_, data->key))
@@ -361,8 +371,15 @@ static int collect_config(const char *key_, const char *value_,
 	ALLOC_GROW(values->items, values->nr + 1, values->alloc);
 	strbuf_init(&values->items[values->nr], 0);
 
-	return format_config(data->display_opts, &values->items[values->nr++],
-			     key_, value_, kvi);
+	status = format_config(data->display_opts, &values->items[values->nr++],
+			       key_, value_, kvi);
+	if (status < 0)
+		return status;
+	if (status) {
+		strbuf_release(&values->items[--values->nr]);
+		status = 0;
+	}
+	return status;
 }
 
 static int get_value(const struct config_location_options *opts,
@@ -438,15 +455,23 @@ static int get_value(const struct config_location_options *opts,
 	if (!values.nr && display_opts->default_value) {
 		struct key_value_info kvi = KVI_INIT;
 		struct strbuf *item;
+		int status;
 
 		kvi_from_param(&kvi);
 		ALLOC_GROW(values.items, values.nr + 1, values.alloc);
 		item = &values.items[values.nr++];
 		strbuf_init(item, 0);
-		if (format_config(display_opts, item, key_,
-				  display_opts->default_value, &kvi) < 0)
+
+		status = format_config(display_opts, item, key_,
+				       display_opts->default_value, &kvi);
+		if (status < 0)
 			die(_("failed to format default config value: %s"),
 			    display_opts->default_value);
+		if (status) {
+			/* default was a missing optional value */
+			values.nr--;
+			strbuf_release(item);
+		}
 	}
 
 	ret = !values.nr;
@@ -547,30 +572,37 @@ static int git_get_color_config(const char *var, const char *value,
 	return 0;
 }
 
-static void get_color(const struct config_location_options *opts,
+static int get_color(const struct config_location_options *opts,
 		      const char *var, const char *def_color)
 {
 	struct get_color_config_data data = {
 		.get_color_slot = var,
 		.parsed_color[0] = '\0',
 	};
+	int ret;
 
 	config_with_options(git_get_color_config, &data,
 			    &opts->source, the_repository,
 			    &opts->options);
 
 	if (!data.get_color_found && def_color) {
-		if (color_parse(def_color, data.parsed_color) < 0)
-			die(_("unable to parse default color value"));
+		if (color_parse(def_color, data.parsed_color) < 0) {
+			ret = error(_("unable to parse default color value"));
+			goto out;
+		}
 	}
 
+	ret = 0;
+
+out:
 	fputs(data.parsed_color, stdout);
+	return ret;
 }
 
 struct get_colorbool_config_data {
-	int get_colorbool_found;
-	int get_diff_color_found;
-	int get_color_ui_found;
+	enum git_colorbool get_colorbool_found;
+	enum git_colorbool get_diff_color_found;
+	enum git_colorbool get_color_ui_found;
 	const char *get_colorbool_slot;
 };
 
@@ -594,33 +626,34 @@ static int get_colorbool(const struct config_location_options *opts,
 {
 	struct get_colorbool_config_data data = {
 		.get_colorbool_slot = var,
-		.get_colorbool_found = -1,
-		.get_diff_color_found = -1,
-		.get_color_ui_found = -1,
+		.get_colorbool_found = GIT_COLOR_UNKNOWN,
+		.get_diff_color_found = GIT_COLOR_UNKNOWN,
+		.get_color_ui_found = GIT_COLOR_UNKNOWN,
 	};
+	bool result;
 
 	config_with_options(git_get_colorbool_config, &data,
 			    &opts->source, the_repository,
 			    &opts->options);
 
-	if (data.get_colorbool_found < 0) {
+	if (data.get_colorbool_found == GIT_COLOR_UNKNOWN) {
 		if (!strcmp(data.get_colorbool_slot, "color.diff"))
 			data.get_colorbool_found = data.get_diff_color_found;
-		if (data.get_colorbool_found < 0)
+		if (data.get_colorbool_found == GIT_COLOR_UNKNOWN)
 			data.get_colorbool_found = data.get_color_ui_found;
 	}
 
-	if (data.get_colorbool_found < 0)
+	if (data.get_colorbool_found == GIT_COLOR_UNKNOWN)
 		/* default value if none found in config */
 		data.get_colorbool_found = GIT_COLOR_AUTO;
 
-	data.get_colorbool_found = want_color(data.get_colorbool_found);
+	result = want_color(data.get_colorbool_found);
 
 	if (print) {
-		printf("%s\n", data.get_colorbool_found ? "true" : "false");
+		printf("%s\n", result ? "true" : "false");
 		return 0;
 	} else
-		return data.get_colorbool_found ? 0 : 1;
+		return result ? 0 : 1;
 }
 
 static void check_write(const struct git_config_source *source)
@@ -706,11 +739,13 @@ static int get_urlmatch(const struct config_location_options *opts,
 	for_each_string_list_item(item, &values) {
 		struct urlmatch_current_candidate_value *matched = item->util;
 		struct strbuf buf = STRBUF_INIT;
+		int status;
 
-		format_config(&display_opts, &buf, item->string,
-			      matched->value_is_null ? NULL : matched->value.buf,
-			      &matched->kvi);
-		fwrite(buf.buf, 1, buf.len, stdout);
+		status = format_config(&display_opts, &buf, item->string,
+				       matched->value_is_null ? NULL : matched->value.buf,
+				       &matched->kvi);
+		if (!status)
+			fwrite(buf.buf, 1, buf.len, stdout);
 		strbuf_release(&buf);
 
 		strbuf_release(&matched->value);
@@ -912,10 +947,13 @@ static int cmd_config_get(int argc, const char **argv, const char *prefix,
 	location_options_init(&location_opts, prefix);
 	display_options_init(&display_opts);
 
-	setup_auto_pager("config", 1);
+	if (display_opts.type != TYPE_COLOR)
+		setup_auto_pager("config", 1);
 
 	if (url)
 		ret = get_urlmatch(&location_opts, &display_opts, argv[0], url);
+	else if (display_opts.type == TYPE_COLOR && !strlen(argv[0]) && display_opts.default_value)
+		ret = get_color(&location_opts, "", display_opts.default_value);
 	else
 		ret = get_value(&location_opts, &display_opts, argv[0], value_pattern,
 				get_value_flags, flags);
@@ -974,7 +1012,7 @@ static int cmd_config_set(int argc, const char **argv, const char *prefix,
 						     argv[0], comment, value);
 		if (ret == CONFIG_NOTHING_SET)
 			error(_("cannot overwrite multiple values with a single value\n"
-			"       Use a regexp, --add or --replace-all to change %s."), argv[0]);
+			"       Use --value=<pattern>, --append or --all to change %s."), argv[0]);
 	}
 
 	location_options_release(&location_opts);
@@ -992,8 +1030,8 @@ static int cmd_config_unset(int argc, const char **argv, const char *prefix,
 	struct option opts[] = {
 		CONFIG_LOCATION_OPTIONS(location_opts),
 		OPT_GROUP(N_("Filter")),
-		OPT_BIT(0, "all", &flags, N_("replace multi-valued config option with new value"), CONFIG_FLAGS_MULTI_REPLACE),
-		OPT_STRING(0, "value", &value_pattern, N_("pattern"), N_("show config with values matching the pattern")),
+		OPT_BIT(0, "all", &flags, N_("unset all multi-valued config options"), CONFIG_FLAGS_MULTI_REPLACE),
+		OPT_STRING(0, "value", &value_pattern, N_("pattern"), N_("unset multi-valued config options with matching values")),
 		OPT_BIT(0, "fixed-value", &flags, N_("use string equality when comparing values to value pattern"), CONFIG_FLAGS_FIXED_VALUE),
 		OPT_END(),
 	};
@@ -1390,7 +1428,7 @@ static int cmd_config_actions(int argc, const char **argv, const char *prefix)
 	}
 	else if (actions == ACTION_GET_COLOR) {
 		check_argc(argc, 1, 2);
-		get_color(&location_opts, argv[0], argv[1]);
+		ret = get_color(&location_opts, argv[0], argv[1]);
 	}
 	else if (actions == ACTION_GET_COLORBOOL) {
 		check_argc(argc, 1, 2);

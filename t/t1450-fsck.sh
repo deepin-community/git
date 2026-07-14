@@ -105,7 +105,7 @@ test_expect_success REFFILES 'HEAD link pointing at a funny object' '
 	echo $ZERO_OID >.git/HEAD &&
 	# avoid corrupt/broken HEAD from interfering with repo discovery
 	test_must_fail env GIT_DIR=.git git fsck 2>out &&
-	test_grep "detached HEAD points" out
+	test_grep "HEAD: badRefOid: points to invalid object ID ${SQ}$ZERO_OID${SQ}" out
 '
 
 test_expect_success 'HEAD link pointing at a funny place' '
@@ -113,7 +113,7 @@ test_expect_success 'HEAD link pointing at a funny place' '
 	test-tool ref-store main create-symref HEAD refs/funny/place &&
 	# avoid corrupt/broken HEAD from interfering with repo discovery
 	test_must_fail env GIT_DIR=.git git fsck 2>out &&
-	test_grep "HEAD points to something strange" out
+	test_grep "HEAD: badHeadTarget: HEAD points to non-branch ${SQ}refs/funny/place${SQ}" out
 '
 
 test_expect_success REFFILES 'HEAD link pointing at a funny object (from different wt)' '
@@ -123,7 +123,7 @@ test_expect_success REFFILES 'HEAD link pointing at a funny object (from differe
 	echo $ZERO_OID >.git/HEAD &&
 	# avoid corrupt/broken HEAD from interfering with repo discovery
 	test_must_fail git -C wt fsck 2>out &&
-	test_grep "main-worktree/HEAD: detached HEAD points" out
+	test_grep "HEAD: badRefOid: points to invalid object ID ${SQ}$ZERO_OID${SQ}" out
 '
 
 test_expect_success REFFILES 'other worktree HEAD link pointing at a funny object' '
@@ -131,7 +131,7 @@ test_expect_success REFFILES 'other worktree HEAD link pointing at a funny objec
 	git worktree add other &&
 	echo $ZERO_OID >.git/worktrees/other/HEAD &&
 	test_must_fail git fsck 2>out &&
-	test_grep "worktrees/other/HEAD: detached HEAD points" out
+	test_grep "worktrees/other/HEAD: badRefOid: points to invalid object ID ${SQ}$ZERO_OID${SQ}" out
 '
 
 test_expect_success 'other worktree HEAD link pointing at missing object' '
@@ -148,7 +148,7 @@ test_expect_success 'other worktree HEAD link pointing at a funny place' '
 	git worktree add other &&
 	git -C other symbolic-ref HEAD refs/funny/place &&
 	test_must_fail git fsck 2>out &&
-	test_grep "worktrees/other/HEAD points to something strange" out
+	test_grep "worktrees/other/HEAD: badHeadTarget: HEAD points to non-branch ${SQ}refs/funny/place${SQ}" out
 '
 
 test_expect_success 'commit with multiple signatures is okay' '
@@ -452,6 +452,60 @@ test_expect_success 'tag with NUL in header' '
 	test_when_finished "git update-ref -d refs/tags/wrong" &&
 	test_must_fail git fsck --tags 2>out &&
 	test_grep "error in tag $tag.*unterminated header: NUL at offset" out
+'
+
+test_expect_success 'tag accepts gpgsig header even if not validly signed' '
+	test_oid_cache <<-\EOF &&
+	header sha1:gpgsig-sha256
+	header sha256:gpgsig
+	EOF
+	header=$(test_oid header) &&
+	sha=$(git rev-parse HEAD) &&
+	cat >good-tag <<-EOF &&
+	object $sha
+	type commit
+	tag good
+	tagger T A Gger <tagger@example.com> 1234567890 -0000
+	$header -----BEGIN PGP SIGNATURE-----
+	 Not a valid signature
+	 -----END PGP SIGNATURE-----
+
+	This is a good tag.
+	EOF
+
+	tag=$(git hash-object --literally -t tag -w --stdin <good-tag) &&
+	test_when_finished "remove_object $tag" &&
+	git update-ref refs/tags/good $tag &&
+	test_when_finished "git update-ref -d refs/tags/good" &&
+	git -c fsck.extraHeaderEntry=error fsck --tags
+'
+
+test_expect_success 'tag rejects invalid headers' '
+	test_oid_cache <<-\EOF &&
+	header sha1:gpgsig-sha256
+	header sha256:gpgsig
+	EOF
+	header=$(test_oid header) &&
+	sha=$(git rev-parse HEAD) &&
+	cat >bad-tag <<-EOF &&
+	object $sha
+	type commit
+	tag good
+	tagger T A Gger <tagger@example.com> 1234567890 -0000
+	$header -----BEGIN PGP SIGNATURE-----
+	 Not a valid signature
+	 -----END PGP SIGNATURE-----
+	junk
+
+	This is a bad tag with junk at the end of the headers.
+	EOF
+
+	tag=$(git hash-object --literally -t tag -w --stdin <bad-tag) &&
+	test_when_finished "remove_object $tag" &&
+	git update-ref refs/tags/bad $tag &&
+	test_when_finished "git update-ref -d refs/tags/bad" &&
+	test_must_fail git -c fsck.extraHeaderEntry=error fsck --tags 2>out &&
+	test_grep "error in tag $tag.*invalid format - extra header" out
 '
 
 test_expect_success 'cleaned up' '
