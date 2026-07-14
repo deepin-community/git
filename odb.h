@@ -3,7 +3,6 @@
 
 #include "hashmap.h"
 #include "object.h"
-#include "list.h"
 #include "oidset.h"
 #include "oidmap.h"
 #include "string-list.h"
@@ -14,6 +13,14 @@ struct oidtree;
 struct strbuf;
 struct repository;
 struct multi_pack_index;
+
+/*
+ * Set this to 0 to prevent odb_read_object_info_extended() from fetching missing
+ * blobs. This has a difference only if extensions.partialClone is set.
+ *
+ * Its default value is 1.
+ */
+extern int fetch_if_missing;
 
 /*
  * Compute the exact path an alternate is at and returns it. In case of
@@ -41,34 +48,19 @@ struct odb_source {
 	/* Object database that owns this object source. */
 	struct object_database *odb;
 
-	/*
-	 * Used to store the results of readdir(3) calls when we are OK
-	 * sacrificing accuracy due to races for speed. That includes
-	 * object existence with OBJECT_INFO_QUICK, as well as
-	 * our search for unique abbreviated hashes. Don't use it for tasks
-	 * requiring greater accuracy!
-	 *
-	 * Be sure to call odb_load_loose_cache() before using.
-	 */
-	uint32_t loose_objects_subdir_seen[8]; /* 256 bits */
-	struct oidtree *loose_objects_cache;
+	/* Private state for loose objects. */
+	struct odb_source_loose *loose;
 
-	/* Map between object IDs for loose objects. */
-	struct loose_object_map *loose_map;
+	/* Should only be accessed directly by packfile.c and midx.c. */
+	struct packfile_store *packfiles;
 
 	/*
-	 * private data
-	 *
-	 * should only be accessed directly by packfile.c and midx.c
+	 * Figure out whether this is the local source of the owning
+	 * repository, which would typically be its ".git/objects" directory.
+	 * This local object directory is usually where objects would be
+	 * written to.
 	 */
-	struct multi_pack_index *midx;
-
-	/*
-	 * This is a temporary object store created by the tmp_objdir
-	 * facility. Disable ref updates since the objects in the store
-	 * might be discarded on rollback.
-	 */
-	int disable_ref_updates;
+	bool local;
 
 	/*
 	 * This object store is ephemeral, so there is no need to fsync.
@@ -83,7 +75,9 @@ struct odb_source {
 };
 
 struct packed_git;
+struct packfile_store;
 struct cached_object_entry;
+struct odb_transaction;
 
 /*
  * The object database encapsulates access to objects in a repository. It
@@ -93,6 +87,13 @@ struct cached_object_entry;
 struct object_database {
 	/* Repository that owns this database. */
 	struct repository *repo;
+
+	/*
+	 * State of current current object database transaction. Only one
+	 * transaction may be pending at a time. Is NULL when no transaction is
+	 * configured.
+	 */
+	struct odb_transaction *transaction;
 
 	/*
 	 * Set of all object directories; the main directory is first (and
@@ -124,21 +125,6 @@ struct object_database {
 	unsigned commit_graph_attempted : 1; /* if loading has been attempted */
 
 	/*
-	 * private data
-	 *
-	 * should only be accessed directly by packfile.c
-	 */
-
-	struct packed_git *packed_git;
-	/* A most-recently-used ordered version of the packed_git list. */
-	struct list_head packed_git_mru;
-
-	struct {
-		struct packed_git **packs;
-		unsigned flags;
-	} kept_pack_cache;
-
-	/*
 	 * This is meant to hold a *small* number of objects that you would
 	 * want odb_read_object() to be able to return, but yet you do not want
 	 * to write them into the object store (e.g. a browse-only
@@ -146,12 +132,6 @@ struct object_database {
 	 */
 	struct cached_object_entry *cached_objects;
 	size_t cached_object_nr, cached_object_alloc;
-
-	/*
-	 * A map of packfiles to packed_git structs for tracking which
-	 * packs have been loaded already.
-	 */
-	struct hashmap pack_map;
 
 	/*
 	 * A fast, rough count of the number of objects in the repository.
@@ -162,26 +142,64 @@ struct object_database {
 	unsigned approximate_object_count_valid : 1;
 
 	/*
-	 * Whether packed_git has already been populated with this repository's
-	 * packs.
-	 */
-	unsigned packed_git_initialized : 1;
-
-	/*
 	 * Submodule source paths that will be added as additional sources to
 	 * allow lookup of submodule objects via the main object database.
 	 */
 	struct string_list submodule_source_paths;
 };
 
-struct object_database *odb_new(struct repository *repo);
-void odb_clear(struct object_database *o);
+/*
+ * Create a new object database for the given repository.
+ *
+ * If the primary source parameter is set it will override the usual primary
+ * object directory derived from the repository's common directory. The
+ * alternate sources are expected to be a PATH_SEP-separated list of secondary
+ * sources. Note that these alternate sources will be added in addition to, not
+ * instead of, the alternates identified by the primary source.
+ *
+ * Returns the newly created object database.
+ */
+struct object_database *odb_new(struct repository *repo,
+				const char *primary_source,
+				const char *alternate_sources);
+
+/* Free the object database and release all resources. */
+void odb_free(struct object_database *o);
 
 /*
- * Find source by its object directory path. Dies in case the source couldn't
- * be found.
+ * Close the object database and all of its sources so that any held resources
+ * will be released. The database can still be used after closing it, in which
+ * case these resources may be reallocated.
+ */
+void odb_close(struct object_database *o);
+
+/*
+ * Clear caches, reload alternates and then reload object sources so that new
+ * objects may become accessible.
+ */
+void odb_reprepare(struct object_database *o);
+
+/*
+ * Starts an ODB transaction. Subsequent objects are written to the transaction
+ * and not committed until odb_transaction_commit() is invoked on the
+ * transaction. If the ODB already has a pending transaction, NULL is returned.
+ */
+struct odb_transaction *odb_transaction_begin(struct object_database *odb);
+
+/*
+ * Commits an ODB transaction making the written objects visible. If the
+ * specified transaction is NULL, the function is a no-op.
+ */
+void odb_transaction_commit(struct odb_transaction *transaction);
+
+/*
+ * Find source by its object directory path. Returns a `NULL` pointer in case
+ * the source could not be found.
  */
 struct odb_source *odb_find_source(struct object_database *odb, const char *obj_dir);
+
+/* Same as `odb_find_source()`, but dies in case the source doesn't exist. */
+struct odb_source *odb_find_source_or_die(struct object_database *odb, const char *obj_dir);
 
 /*
  * Replace the current writable object directory with the specified temporary
@@ -257,8 +275,8 @@ void odb_add_to_alternates_file(struct object_database *odb,
  * recursive alternates it points to), but do not modify the on-disk alternates
  * file.
  */
-void odb_add_to_alternates_memory(struct object_database *odb,
-				  const char *dir);
+struct odb_source *odb_add_to_alternates_memory(struct object_database *odb,
+						const char *dir);
 
 /*
  * Read an object from the database. Returns the object data and assigns object
@@ -305,7 +323,6 @@ struct object_info {
 		OI_CACHED,
 		OI_LOOSE,
 		OI_PACKED,
-		OI_DBCACHED
 	} whence;
 	union {
 		/*
@@ -319,7 +336,12 @@ struct object_info {
 		struct {
 			struct packed_git *pack;
 			off_t offset;
-			unsigned int is_delta;
+			enum packed_object_type {
+				PACKED_OBJECT_TYPE_UNKNOWN,
+				PACKED_OBJECT_TYPE_FULL,
+				PACKED_OBJECT_TYPE_OFS_DELTA,
+				PACKED_OBJECT_TYPE_REF_DELTA,
+			} type;
 		} packed;
 	} u;
 };
@@ -381,6 +403,9 @@ enum {
 int odb_has_object(struct object_database *odb,
 		   const struct object_id *oid,
 		   unsigned flags);
+
+int odb_freshen_object(struct object_database *odb,
+		       const struct object_id *oid);
 
 void odb_assert_oid_type(struct object_database *odb,
 			 const struct object_id *oid, enum object_type expect);
@@ -475,37 +500,14 @@ static inline int odb_write_object(struct object_database *odb,
 	return odb_write_object_ext(odb, buf, len, type, oid, NULL, 0);
 }
 
-/* Compatibility wrappers, to be removed once Git 2.51 has been released. */
-#include "repository.h"
+struct odb_write_stream {
+	const void *(*read)(struct odb_write_stream *, unsigned long *len);
+	void *data;
+	int is_finished;
+};
 
-static inline int oid_object_info_extended(struct repository *r,
-					   const struct object_id *oid,
-					   struct object_info *oi,
-					   unsigned flags)
-{
-	return odb_read_object_info_extended(r->objects, oid, oi, flags);
-}
-
-static inline int oid_object_info(struct repository *r,
-				  const struct object_id *oid,
-				  unsigned long *sizep)
-{
-	return odb_read_object_info(r->objects, oid, sizep);
-}
-
-static inline void *repo_read_object_file(struct repository *r,
-					  const struct object_id *oid,
-					  enum object_type *type,
-					  unsigned long *size)
-{
-	return odb_read_object(r->objects, oid, type, size);
-}
-
-static inline int has_object(struct repository *r,
-			     const struct object_id *oid,
-			     unsigned flags)
-{
-	return odb_has_object(r->objects, oid, flags);
-}
+int odb_write_object_stream(struct object_database *odb,
+			    struct odb_write_stream *stream, size_t len,
+			    struct object_id *oid);
 
 #endif /* ODB_H */

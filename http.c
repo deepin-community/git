@@ -1348,6 +1348,14 @@ void http_init(struct remote *remote, const char *url, int proactive_auth)
 	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
 		die("curl_global_init failed");
 
+#ifdef GIT_CURL_HAVE_GLOBAL_TRACE
+	{
+		const char *comp = getenv("GIT_TRACE_CURL_COMPONENTS");
+		if (comp)
+			curl_global_trace(comp);
+	}
+#endif
+
 	if (proactive_auth && http_proactive_auth == PROACTIVE_AUTH_NONE)
 		http_proactive_auth = PROACTIVE_AUTH_IF_CREDENTIALS;
 
@@ -2405,8 +2413,9 @@ static char *fetch_pack_index(unsigned char *hash, const char *base_url)
 	return tmp;
 }
 
-static int fetch_and_setup_pack_index(struct packed_git **packs_head,
-	unsigned char *sha1, const char *base_url)
+static int fetch_and_setup_pack_index(struct packfile_list *packs,
+				      unsigned char *sha1,
+				      const char *base_url)
 {
 	struct packed_git *new_pack, *p;
 	char *tmp_idx = NULL;
@@ -2416,7 +2425,7 @@ static int fetch_and_setup_pack_index(struct packed_git **packs_head,
 	 * If we already have the pack locally, no need to fetch its index or
 	 * even add it to list; we already have all of its objects.
 	 */
-	for (p = get_all_packs(the_repository); p; p = p->next) {
+	repo_for_each_pack(the_repository, p) {
 		if (hasheq(p->hash, sha1, the_repository->hash_algo))
 			return 0;
 	}
@@ -2440,12 +2449,11 @@ static int fetch_and_setup_pack_index(struct packed_git **packs_head,
 	if (ret)
 		return -1;
 
-	new_pack->next = *packs_head;
-	*packs_head = new_pack;
+	packfile_list_prepend(packs, new_pack);
 	return 0;
 }
 
-int http_get_info_packs(const char *base_url, struct packed_git **packs_head)
+int http_get_info_packs(const char *base_url, struct packfile_list *packs)
 {
 	struct http_get_options options = {0};
 	int ret = 0;
@@ -2469,7 +2477,7 @@ int http_get_info_packs(const char *base_url, struct packed_git **packs_head)
 		    !parse_oid_hex(data, &oid, &data) &&
 		    skip_prefix(data, ".pack", &data) &&
 		    (*data == '\n' || *data == '\0')) {
-			fetch_and_setup_pack_index(packs_head, oid.hash, base_url);
+			fetch_and_setup_pack_index(packs, oid.hash, base_url);
 		} else {
 			data = strchrnul(data, '\n');
 		}
@@ -2533,15 +2541,10 @@ cleanup:
 }
 
 void http_install_packfile(struct packed_git *p,
-			   struct packed_git **list_to_remove_from)
+			   struct packfile_list *list_to_remove_from)
 {
-	struct packed_git **lst = list_to_remove_from;
-
-	while (*lst != p)
-		lst = &((*lst)->next);
-	*lst = (*lst)->next;
-
-	install_packed_git(the_repository, p);
+	packfile_list_remove(list_to_remove_from, p);
+	packfile_store_add_pack(the_repository->objects->sources->packfiles, p);
 }
 
 struct http_pack_request *new_http_pack_request(
