@@ -48,19 +48,18 @@ static void write_ref_delta(struct hashfile *f,
 			    struct object_id *base)
 {
 	unsigned char header[MAX_PACK_OBJECT_HEADER];
-	unsigned long size, base_size, delta_size, compressed_size, hdrlen;
+	unsigned long delta_size, compressed_size, hdrlen;
+	size_t size, base_size;
 	enum object_type type;
 	void *base_buf, *delta_buf;
-	void *buf = repo_read_object_file(the_repository,
-					  oid, &type,
-					  &size);
+	void *buf = odb_read_object(the_repository->objects,
+				    oid, &type, &size);
 
 	if (!buf)
 		die("unable to read %s", oid_to_hex(oid));
 
-	base_buf = repo_read_object_file(the_repository,
-					 base, &type,
-					 &base_size);
+	base_buf = odb_read_object(the_repository->objects,
+				   base, &type, &base_size);
 
 	if (!base_buf)
 		die("unable to read %s", oid_to_hex(base));
@@ -97,7 +96,7 @@ int cmd__pack_deltas(int argc, const char **argv)
 	if (argc || num_objects < 0)
 		usage_with_options(usage_str, options);
 
-	setup_git_directory();
+	setup_git_directory(the_repository);
 
 	f = hashfd(the_repository->hash_algo, 1, "<stdout>");
 	write_pack_header(f, num_objects);

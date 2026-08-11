@@ -32,12 +32,12 @@ int cmd__pack_mtimes(int argc, const char **argv)
 	struct strbuf buf = STRBUF_INIT;
 	struct packed_git *p;
 
-	setup_git_directory();
+	setup_git_directory(the_repository);
 
 	if (argc != 2)
 		usage(pack_mtimes_usage);
 
-	for (p = get_all_packs(the_repository); p; p = p->next) {
+	repo_for_each_pack(the_repository, p) {
 		strbuf_addstr(&buf, basename(p->pack_name));
 		strbuf_strip_suffix(&buf, ".pack");
 		strbuf_addstr(&buf, ".mtimes");

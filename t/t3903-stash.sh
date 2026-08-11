@@ -56,6 +56,7 @@ setup_stash() {
 	git add other-file &&
 	test_tick &&
 	git commit -m initial &&
+	git tag initial &&
 	echo 2 >file &&
 	git add file &&
 	echo 3 >file &&
@@ -902,6 +903,7 @@ test_expect_success 'branch: should not drop the stash if the apply fails' '
 
 test_expect_success 'apply: show same status as git status (relative to ./)' '
 	git stash clear &&
+	mkdir -p subdir &&
 	echo 1 >subdir/subfile1 &&
 	echo 2 >subdir/subfile2 &&
 	git add subdir/subfile1 &&
@@ -1356,6 +1358,7 @@ test_expect_success 'stash -k -- <pathspec> leaves unstaged files intact' '
 
 test_expect_success 'stash -- <subdir> leaves untracked files in subdir intact' '
 	git reset &&
+	mkdir -p subdir &&
 	>subdir/untracked &&
 	>subdir/tracked1 &&
 	>subdir/tracked2 &&
@@ -1372,6 +1375,7 @@ test_expect_success 'stash -- <subdir> leaves untracked files in subdir intact' 
 
 test_expect_success 'stash -- <subdir> works with binary files' '
 	git reset &&
+	mkdir -p subdir &&
 	>subdir/untracked &&
 	>subdir/tracked &&
 	cp "$TEST_DIRECTORY"/test-binary-1.png subdir/tracked-binary &&
@@ -1739,6 +1743,92 @@ test_expect_success 'submodules does not affect the branch recorded in stash mes
 		git stash list >../actual_stash_list.txt &&
 		grep "On work_branch: custom stash for work_branch" ../actual_stash_list.txt
 	)
+'
+
+test_expect_success SANITIZE_LEAK 'stash show handles -- without leaking' '
+	git stash show --
+'
+
+test_expect_success 'controlled error return on unrecognized option' '
+	test_expect_code 129 git stash show -p --invalid 2>usage &&
+	grep -e "^usage: git stash show" usage
+'
+
+test_expect_success 'stash.index=true implies --index' '
+	# setup for a few related tests
+	test_commit file base &&
+	echo index >file &&
+	git add file &&
+	echo working >file &&
+	git stash &&
+
+	test_when_finished "git reset --hard" &&
+	git -c stash.index=true stash apply &&
+	echo index >expect &&
+	git show :0:file >actual &&
+	test_cmp expect actual &&
+	echo working >expect &&
+	test_cmp expect file
+'
+
+test_expect_success 'stash.index=true overridden by --no-index' '
+	test_when_finished "git reset --hard" &&
+	git -c stash.index=true stash apply --no-index &&
+	echo base >expect &&
+	git show :0:file >actual &&
+	test_cmp expect actual &&
+	echo working >expect &&
+	test_cmp expect file
+'
+
+test_expect_success 'stash.index=false overridden by --index' '
+	test_when_finished "git reset --hard" &&
+	git -c stash.index=false stash apply --index &&
+	echo index >expect &&
+	git show :0:file >actual &&
+	test_cmp expect actual &&
+	echo working >expect &&
+	test_cmp expect file
+'
+
+test_expect_success 'apply with custom conflict labels' '
+	git reset --hard initial &&
+	test_commit label-base conflict-file base-content &&
+	echo stashed >conflict-file &&
+	git stash push -m "stashed" &&
+	test_commit label-upstream conflict-file upstream-content &&
+	test_must_fail git -c merge.conflictStyle=diff3 stash apply --label-ours=UP --label-theirs=STASH &&
+	test_grep "^<<<<<<< UP" conflict-file &&
+	test_grep "^||||||| Stash base" conflict-file &&
+	test_grep "^>>>>>>> STASH" conflict-file
+'
+
+test_expect_success 'apply with empty conflict labels' '
+	git reset --hard initial &&
+	test_commit empty-label-base conflict-file base-content &&
+	echo stashed >conflict-file &&
+	git stash push -m "stashed" &&
+	test_commit empty-label-upstream conflict-file upstream-content &&
+	test_must_fail git stash apply --label-ours= --label-theirs= &&
+	test_grep "^<<<<<<<$" conflict-file &&
+	test_grep "^>>>>>>>$" conflict-file
+'
+
+test_expect_success 'stash show --include-untracked includes untracked files' '
+	git reset --hard &&
+
+	echo tracked >tracked &&
+	git add tracked &&
+	git commit -m "base" &&
+
+	echo change >>tracked &&
+	echo untracked >untracked &&
+
+	git stash push --include-untracked &&
+	test_path_is_missing untracked &&
+
+	git stash show --include-untracked >actual &&
+	test_grep "untracked" actual
 '
 
 test_done

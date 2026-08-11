@@ -2,12 +2,14 @@
 #define HTTP_H
 
 struct packed_git;
+struct packfile_list;
 
 #include "git-zlib.h"
 
 #include <curl/curl.h>
 #include <curl/easy.h>
 
+#include "gettext.h"
 #include "strbuf.h"
 #include "remote.h"
 
@@ -18,6 +20,7 @@ struct slot_results {
 	long http_code;
 	long auth_avail;
 	long http_connectcode;
+	long retry_after;
 };
 
 struct active_request_slot {
@@ -73,6 +76,12 @@ extern int http_is_verbose;
 extern ssize_t http_post_buffer;
 extern struct credential http_auth;
 
+/**
+ * Prepare for an HTTP re-authentication retry. This fills credentials
+ * via credential_fill() so the next request can include them.
+ */
+void http_reauth_prepare(int all_capabilities);
+
 extern char curl_errorstr[CURL_ERROR_SIZE];
 
 enum http_follow_config {
@@ -94,6 +103,15 @@ static inline int missing__target(int code, int result)
 }
 
 #define missing_target(a) missing__target((a)->http_code, (a)->curl_result)
+
+static inline curl_off_t cast_size_t_to_curl_off_t(size_t a)
+{
+	uintmax_t size = a;
+	if (size > maximum_signed_value_of_type(curl_off_t))
+		die(_("number too large to represent as curl_off_t "
+		      "on this platform: %"PRIuMAX), (uintmax_t)a);
+	return (curl_off_t)a;
+}
 
 /*
  * Normalize curl results to handle CURL_FAILONERROR (or lack thereof). Failing
@@ -146,6 +164,13 @@ struct http_get_options {
 	 * request has completed.
 	 */
 	struct string_list *extra_headers;
+
+	/*
+	 * After a request completes, contains the Retry-After delay in seconds
+	 * if the server returned HTTP 429 with a Retry-After header (requires
+	 * libcurl 7.66.0 or later), or -1 if no such header was present.
+	 */
+	long retry_after;
 };
 
 /* Return values for http_get_*() */
@@ -156,6 +181,7 @@ struct http_get_options {
 #define HTTP_REAUTH	4
 #define HTTP_NOAUTH	5
 #define HTTP_NOMATCHPUBLICKEY	6
+#define HTTP_RATE_LIMITED	7
 
 /*
  * Requests a URL and stores the result in a strbuf.
@@ -180,7 +206,7 @@ struct curl_slist *http_append_auth_header(const struct credential *c,
 
 /* Helpers for fetching packs */
 int http_get_info_packs(const char *base_url,
-			struct packed_git **packs_head);
+			struct packfile_list *packs);
 
 /* Helper for getting Accept-Language header */
 const char *http_get_accept_language_header(void);
@@ -210,13 +236,13 @@ int finish_http_pack_request(struct http_pack_request *preq);
 void release_http_pack_request(struct http_pack_request *preq);
 
 /*
- * Remove p from the given list, and invoke install_packed_git() on it.
+ * Remove p from the given list, and invoke packfile_store_add_pack() on it.
  *
  * This is a convenience function for users that have obtained a list of packs
  * from http_get_info_packs() and have chosen a specific pack to fetch.
  */
 void http_install_packfile(struct packed_git *p,
-			   struct packed_git **list_to_remove_from);
+			   struct packfile_list *list_to_remove_from);
 
 /* Helpers for fetching object */
 struct http_object_request {

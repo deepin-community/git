@@ -11,9 +11,9 @@ test_description='test bash completion'
 # untraceable with such ancient Bash versions.
 test_untraceable=UnfortunatelyYes
 
-# Override environment and always use master for the default initial branch
+# Override environment and always use main for the default initial branch
 # name for these tests, so that rev completion candidates are as expected.
-GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=master
+GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
 export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 
 . ./lib-bash.sh
@@ -590,12 +590,10 @@ test_expect_success '__gitcomp - doesnt fail because of invalid variable name' '
 	__gitcomp "$invalid_variable_name"
 '
 
-read -r -d "" refs <<-\EOF
-main
+refs='main
 maint
 next
-seen
-EOF
+seen'
 
 test_expect_success '__gitcomp_nl - trailing space' '
 	test_gitcomp_nl "m" "$refs" <<-EOF
@@ -1453,7 +1451,7 @@ test_expect_success 'git bisect - start subcommand arguments before double-dash 
 		HEAD Z
 		final Z
 		initial Z
-		master Z
+		main Z
 		EOF
 	)
 '
@@ -2446,7 +2444,7 @@ test_expect_success FUNNYNAMES \
 	>repeated-quoted/2-file &&
 	>repeated-quoted/3\"file &&   # ... and here, too.
 
-	# Still, we shold only list the directory name only once.
+	# Still, we should list the directory name only once.
 	test_path_completion repeated repeated-quoted
 '
 
@@ -2601,6 +2599,7 @@ test_expect_success 'double dash "git checkout"' '
 	--ignore-skip-worktree-bits Z
 	--ignore-other-worktrees Z
 	--recurse-submodules Z
+	--auto-advance Z
 	--progress Z
 	--guess Z
 	--no-guess Z
@@ -3053,6 +3052,7 @@ test_expect_success 'git config set - variable name - __git_compute_second_level
 	submodule.sub.fetchRecurseSubmodules Z
 	submodule.sub.ignore Z
 	submodule.sub.active Z
+	submodule.sub.gitdir Z
 	EOF
 '
 

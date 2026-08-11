@@ -1,3 +1,22 @@
+git (1:2.55.0-1) unstable; urgency=low
+
+  * new upstream release (see RelNotes/2.54.0.adoc, 2.55.0.adoc).
+  * debian/rules: disable Rust for now.
+
+ -- Jonathan Nieder <jrnieder@gmail.com>  Sun, 02 Aug 2026 16:39:03 +0200
+
+git (1:2.53.0-1) unstable; urgency=low
+
+  * new upstream release (see RelNotes/2.52.0.adoc, 2.53.0.adoc).
+  * debian/control: Standards-Version: 4.7.2.  The main relevant
+    change is that packages may not break (but are permitted to
+    error out when asked to display documentation) when manpages
+    are not present; "git help" already fulfills this requirement by
+    passing on the message for a missing page from "man" to the
+    caller.
+
+ -- Jonathan Nieder <jrnieder@gmail.com>  Sun, 01 Mar 2026 22:31:10 +0100
+
 git (1:2.51.0-1) unstable; urgency=low
 
   * new upstream release (see RelNotes/2.51.0.adoc).

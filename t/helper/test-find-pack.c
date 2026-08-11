@@ -25,7 +25,7 @@ int cmd__find_pack(int argc, const char **argv)
 	struct object_id oid;
 	struct packed_git *p;
 	int count = -1, actual_count = 0;
-	const char *prefix = setup_git_directory();
+	const char *prefix = setup_git_directory(the_repository);
 
 	struct option options[] = {
 		OPT_INTEGER('c', "check-count", &count, "expected number of packs"),
@@ -39,11 +39,12 @@ int cmd__find_pack(int argc, const char **argv)
 	if (repo_get_oid(the_repository, argv[0], &oid))
 		die("cannot parse %s as an object name", argv[0]);
 
-	for (p = get_all_packs(the_repository); p; p = p->next)
+	repo_for_each_pack(the_repository, p) {
 		if (find_pack_entry_one(&oid, p)) {
 			printf("%s\n", p->pack_name);
 			actual_count++;
 		}
+	}
 
 	if (count > -1 && count != actual_count)
 		die("bad packfile count %d instead of %d", actual_count, count);

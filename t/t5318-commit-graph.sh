@@ -417,6 +417,26 @@ test_expect_success TIME_IS_64BIT,TIME_T_IS_64BIT 'lower layers have overflow ch
 	test_cmp full/.git/objects/info/commit-graph commit-graph-upgraded
 '
 
+test_expect_success TIME_IS_64BIT,TIME_T_IS_64BIT 'overflow chunk when replacing commit-graph' '
+	test_when_finished "rm -rf repo" &&
+	git init repo &&
+	(
+		cd repo &&
+		cat >commit <<-EOF &&
+		tree $(test_oid empty_tree)
+		author Example <committer@example.com> 9223372036854775 +0000
+		committer Example <committer@example.com> 9223372036854775 +0000
+
+		Weird commit date
+		EOF
+		commit_id=$(git hash-object -t commit -w commit) &&
+		git reset --hard "$commit_id" &&
+		git commit-graph write --reachable &&
+		git commit-graph write --reachable --split=replace &&
+		git log
+	)
+'
+
 # the verify tests below expect the commit-graph to contain
 # exactly the commits reachable from the commits/8 branch.
 # If the file changes the set of commits in the list, then the
@@ -943,6 +963,50 @@ test_expect_success 'stale commit cannot be parsed when traversing graph' '
 		# ... but fail when we are paranoid.
 		test_must_fail env GIT_COMMIT_GRAPH_PARANOIA=true git rev-parse HEAD~2 2>error &&
 		grep "error: commit $oid exists in commit-graph but not in the object database" error
+	)
+'
+
+test_expect_success 'config commitGraph.changedPaths acts like --changed-paths' '
+	git init config-changed-paths &&
+	(
+		cd config-changed-paths &&
+
+		# commitGraph.changedPaths is not set and it should not write Bloom filters
+		test_commit first &&
+		GIT_PROGRESS_DELAY=0 git commit-graph write --reachable --progress 2>error &&
+		test_grep ! "Bloom filters" error &&
+
+		# Set commitGraph.changedPaths to true and it should write Bloom filters
+		test_commit second &&
+		git config commitGraph.changedPaths true &&
+		GIT_PROGRESS_DELAY=0 git commit-graph write --reachable --progress 2>error &&
+		test_grep "Bloom filters" error &&
+
+		# Add one more config commitGraph.changedPaths as false to disable the previous true config value
+		# It should still write Bloom filters due to existing filters
+		test_commit third &&
+		git config --add commitGraph.changedPaths false &&
+		GIT_PROGRESS_DELAY=0 git commit-graph write --reachable --progress 2>error &&
+		test_grep "Bloom filters" error &&
+
+		# commitGraph.changedPaths is still false and command line options should take precedence
+		test_commit fourth &&
+		GIT_PROGRESS_DELAY=0 git commit-graph write --no-changed-paths --reachable --progress 2>error &&
+		test_grep ! "Bloom filters" error &&
+		GIT_PROGRESS_DELAY=0 git commit-graph write --reachable --progress 2>error &&
+		test_grep ! "Bloom filters" error &&
+
+		# commitGraph.changedPaths is all cleared and then set to false again, command line options should take precedence
+		test_commit fifth &&
+		git config --unset-all commitGraph.changedPaths &&
+		git config commitGraph.changedPaths false &&
+		GIT_PROGRESS_DELAY=0 git commit-graph write --changed-paths --reachable --progress 2>error &&
+		test_grep "Bloom filters" error &&
+
+		# commitGraph.changedPaths is still false and it should write Bloom filters due to existing filters
+		test_commit sixth &&
+		GIT_PROGRESS_DELAY=0 git commit-graph write --reachable --progress 2>error &&
+		test_grep "Bloom filters" error
 	)
 '
 

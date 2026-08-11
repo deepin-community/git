@@ -1506,6 +1506,8 @@ test_expect_success 'sparse-index is not expanded' '
 	ensure_not_expanded reset --hard &&
 	ensure_not_expanded restore -s rename-out-to-out -- deep/deeper1 &&
 
+	ensure_not_expanded ls-files deep/deeper1 &&
+
 	echo >>sparse-index/README.md &&
 	ensure_not_expanded add -A &&
 	echo >>sparse-index/extra.txt &&
@@ -1607,6 +1609,17 @@ test_expect_success 'describe tested on all' '
 	test_all_match git describe --dirty
 '
 
+test_expect_success 'ls-files filtering and expansion' '
+	init_repos &&
+
+	# This filtering will hit a sparse directory midway
+	# through the iteration.
+	test_all_match git ls-files deep &&
+
+	# This pathspec will filter the index to only a sparse
+	# directory.
+	test_all_match git ls-files folder1
+'
 
 test_expect_success 'sparse-index is not expanded: describe' '
 	init_repos &&
@@ -2544,6 +2557,70 @@ test_expect_success 'cat-file --batch' '
 	EOF
 	test_all_match git cat-file --batch <in &&
 	ensure_expanded cat-file --batch <in
+'
+
+test_expect_success 'merge -s ours' '
+	init_repos &&
+
+	test_all_match git rev-parse HEAD^{tree} &&
+	test_all_match git merge -s ours merge-right &&
+	test_all_match git rev-parse HEAD^{tree} &&
+	test_all_match git rev-parse HEAD^2
+'
+
+test_expect_success 'sparse-index is not expanded: merge-ours' '
+	init_repos &&
+	ensure_not_expanded merge -s ours merge-right
+'
+
+test_expect_success 'restore --staged with sparse definition' '
+	init_repos &&
+
+	# Stage changes within the sparse definition
+	test_all_match git checkout -b restore-staged-1 base &&
+	test_all_match git reset --soft update-deep &&
+	test_all_match git restore --staged . &&
+	test_all_match git status --porcelain=v2 &&
+	test_all_match git diff --cached
+'
+
+test_expect_success 'restore --staged with outside sparse definition' '
+	init_repos &&
+
+	# Stage changes that include paths outside the sparse definition.
+	# Although the working tree differs between full and sparse checkouts
+	# after restore, the state of the index should be the same.
+	test_all_match git checkout -b restore-staged-2 base &&
+	test_all_match git reset --soft update-folder1 &&
+	test_sparse_match git restore --staged . &&
+	git -C full-checkout restore --staged . &&
+	test_all_match git ls-files -s -- folder1 &&
+	test_all_match git diff --cached -- folder1
+'
+
+test_expect_success 'restore --staged with wildcards' '
+	init_repos &&
+
+	test_all_match git checkout -b restore-staged-3 base &&
+	test_all_match git reset --soft update-deep &&
+	test_all_match git restore --staged "deep/*" &&
+	test_all_match git status --porcelain=v2 &&
+	test_all_match git diff --cached
+'
+
+test_expect_success 'sparse-index is not expanded: restore --staged' '
+	init_repos &&
+
+	git -C sparse-index checkout -b restore-staged-exp base &&
+	git -C sparse-index reset --soft update-folder1 &&
+	ensure_not_expanded restore --staged .
+'
+
+test_expect_success 'sparse-index is not expanded: restore --source --staged' '
+	init_repos &&
+
+	git -C sparse-index checkout -b restore-source-staged base &&
+	ensure_not_expanded restore --source update-folder1 --staged .
 '
 
 test_done

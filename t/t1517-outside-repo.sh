@@ -93,6 +93,14 @@ test_expect_success 'diff outside repository' '
 	test_cmp expect actual
 '
 
+test_expect_success 'hash object exceeding bigFileThreshold outside repository' '
+	(
+		cd non-repo &&
+		echo foo >foo &&
+		git -c core.bigFileThreshold=1 hash-object --stdin <foo
+	)
+'
+
 test_expect_success 'stripspace outside repository' '
 	nongit git stripspace -s </dev/null
 '
@@ -107,18 +115,47 @@ test_expect_success LIBCURL 'remote-http outside repository' '
 	test_grep "^error: remote-curl" actual
 '
 
-test_expect_success 'update-server-info does not crash with -h' '
-	test_expect_code 129 git update-server-info -h >usage &&
-	test_grep "[Uu]sage: git update-server-info " usage &&
-	test_expect_code 129 nongit git update-server-info -h >usage &&
-	test_grep "[Uu]sage: git update-server-info " usage
-'
+for cmd in $(git --list-cmds=main)
+do
+	cmd=${cmd%.*} # strip .sh, .perl, etc.
+	case "$cmd" in
+	archimport | citool | credential-netrc | credential-libsecret | \
+	credential-osxkeychain | cvsexportcommit | cvsimport | cvsserver | \
+	daemon | \
+	difftool--helper | filter-branch | format-rev | fsck-objects | \
+	get-tar-commit-id | \
+	gui | gui--askpass | \
+	http-backend | http-fetch | http-push | init-db | \
+	merge-octopus | merge-one-file | merge-resolve | mergetool | \
+	mktag | p4 | p4.py | pickaxe | remote-ftp | remote-ftps | \
+	remote-http | remote-https | replay | send-email | \
+	sh-i18n--envsubst | shell | show | stage | submodule | svn | \
+	upload-archive--writer | upload-pack | web--browse | whatchanged)
+		expect_outcome=expect_failure ;;
+	*)
+		expect_outcome=expect_success ;;
+	esac
+	case "$cmd" in
+	instaweb)
+		prereq=PERL ;;
+	*)
+		prereq= ;;
+	esac
+	test_$expect_outcome $prereq "'git $cmd -h' outside a repository" '
+		test_expect_code 129 nongit git $cmd -h >usage &&
+		test_grep "[Uu]sage: git $cmd " usage
+	'
+	test_$expect_outcome $prereq "'git $cmd --help-all' outside a repository" '
+		test_expect_code 129 nongit git $cmd --help-all >usage &&
+		test_grep "[Uu]sage: git $cmd " usage
+	'
+done
 
-test_expect_success 'prune does not crash with -h' '
-	test_expect_code 129 git prune -h >usage &&
-	test_grep "[Uu]sage: git prune " usage &&
-	test_expect_code 129 nongit git prune -h >usage &&
-	test_grep "[Uu]sage: git prune " usage
+test_expect_success 'fmt-merge-msg does not crash with -h' '
+	test_expect_code 129 git fmt-merge-msg -h >usage &&
+	test_grep "[Uu]sage: git fmt-merge-msg " usage &&
+	test_expect_code 129 nongit git fmt-merge-msg -h >usage &&
+	test_grep "[Uu]sage: git fmt-merge-msg " usage
 '
 
 test_done
