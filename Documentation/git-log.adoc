@@ -36,14 +36,14 @@ OPTIONS
 	Print out the ref names of any commits that are shown. Possible values
 	are:
 +
-----
+--
 `short`;; the ref name prefixes `refs/heads/`, `refs/tags/` and
 	`refs/remotes/` are not printed.
 `full`;; the full ref name (including prefix) is printed.
-`auto`:: if the output is going to a terminal, the ref names
+`auto`;; if the output is going to a terminal, the ref names
 	are shown as if `short` were given, otherwise no ref names are
 	shown.
-----
+--
 +
 The option `--decorate` is short-hand for `--decorate=short`. Default to
 configuration value of `log.decorate` if configured, otherwise, `auto`.
@@ -73,8 +73,10 @@ used as decoration if they match `HEAD`, `refs/heads/`, `refs/remotes/`,
 	Print out the ref name given on the command line by which each
 	commit was reached.
 
-`--[no-]mailmap`::
-`--[no-]use-mailmap`::
+`--mailmap`::
+`--no-mailmap`::
+`--use-mailmap`::
+`--no-use-mailmap`::
 	Use mailmap file to map author and committer names and email
 	addresses to canonical real names and email addresses. See
 	linkgit:git-shortlog[1].

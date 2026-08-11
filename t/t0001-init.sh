@@ -425,7 +425,11 @@ test_expect_success SYMLINKS 're-init to move gitdir symlink' '
 	git init --separate-git-dir ../realgitdir
 	) &&
 	echo "gitdir: $(pwd)/realgitdir" >expected &&
-	test_cmp expected newdir/.git &&
+	case "$GIT_TEST_CMP" in
+	# `git diff --no-index` does not resolve symlinks
+	*--no-index*) cmp expected newdir/.git;;
+	*) test_cmp expected newdir/.git;;
+	esac &&
 	test_cmp expected newdir/here &&
 	test_path_is_dir realgitdir/refs
 '
@@ -883,6 +887,22 @@ test_expect_success 'advice on unconfigured init.defaultBranch disabled' '
 	test_grep ! "hint: " err
 '
 
+test_expect_success 'default branch name' '
+	if test_have_prereq WITH_BREAKING_CHANGES
+	then
+		expect=main
+	else
+		expect=master
+	fi &&
+	echo "refs/heads/$expect" >expect &&
+	(
+		sane_unset GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME &&
+		git init default-initial-branch-name
+	) &&
+	git -C default-initial-branch-name symbolic-ref HEAD >actual &&
+	test_cmp expect actual
+'
+
 test_expect_success 'overridden default main branch name (env)' '
 	test_config_global init.defaultBranch nmb &&
 	GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=env git init main-branch-env &&
@@ -958,6 +978,16 @@ test_expect_success 're-init reads matching includeIf.onbranch' '
 	EOF
 	test_must_fail git -c includeIf.onbranch:branch.path="$path" init repo 2>err &&
 	test_cmp expect err
+'
+
+test_expect_success 'init honors GIT_OBJECT_DIRECTORY' '
+	test_when_finished "rm -rf init-objdir custom-odb" &&
+	mkdir custom-odb &&
+	env GIT_OBJECT_DIRECTORY="$(pwd)/custom-odb" \
+		git init init-objdir &&
+	test_path_is_missing init-objdir/.git/objects/pack &&
+	test_path_is_dir custom-odb/pack &&
+	test_path_is_dir custom-odb/info
 '
 
 test_done

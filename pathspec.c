@@ -201,8 +201,7 @@ static void parse_pathspec_attr_match(struct pathspec_item *item, const char *va
 	if (!value || !*value)
 		die(_("attr spec must not be empty"));
 
-	string_list_split(&list, value, ' ', -1);
-	string_list_remove_empty_items(&list, 0);
+	string_list_split_f(&list, value, " ", -1, STRING_LIST_SPLIT_NONEMPTY);
 
 	item->attr_check = attr_check_alloc();
 	CALLOC_ARRAY(item->attr_match, list.nr);
@@ -487,7 +486,7 @@ static void init_pathspec_item(struct pathspec_item *item, unsigned flags,
 		match = xstrdup(copyfrom);
 		prefixlen = 0;
 	} else {
-		match = prefix_path_gently(prefix, prefixlen,
+		match = prefix_path_gently(the_repository, prefix, prefixlen,
 					   &prefixlen, copyfrom);
 		if (!match) {
 			const char *hint_path;

@@ -325,7 +325,9 @@ static char *grab_blob(struct repository *r,
 		*size = fill_textconv(r, textconv, df, &blob);
 		free_filespec(df);
 	} else {
-		blob = odb_read_object(r->objects, oid, &type, size);
+		size_t size_st = 0;
+		blob = odb_read_object(r->objects, oid, &type, &size_st);
+		*size = cast_size_t_to_ulong(size_st);
 		if (!blob)
 			die(_("unable to read %s"), oid_to_hex(oid));
 		if (type != OBJ_BLOB)
@@ -666,7 +668,7 @@ static int make_hunks(struct sline *sline, unsigned long cnt,
 		 *   (-) line, which records from what parents the line
 		 *       was removed; this line does not appear in the result.
 		 * then check the set of parents the result has difference
-		 * from, from all lines.  If there are lines that has
+		 * from, from all lines.  If there are lines that have
 		 * different set of parents that the result has differences
 		 * from, that means we have more than two versions.
 		 *
@@ -749,7 +751,7 @@ static void show_line_to_eol(const char *line, int len, const char *reset)
 
 static void dump_sline(struct sline *sline, const char *line_prefix,
 		       unsigned long cnt, int num_parent,
-		       int use_color, int result_deleted)
+		       enum git_colorbool use_color, int result_deleted)
 {
 	unsigned long mark = (1UL<<num_parent);
 	unsigned long no_pre_delete = (2UL<<num_parent);
@@ -1315,7 +1317,7 @@ static struct diff_filepair *combined_pair(struct combine_diff_path *p,
 	struct diff_filepair *pair;
 	struct diff_filespec *pool;
 
-	pair = xmalloc(sizeof(*pair));
+	CALLOC_ARRAY(pair, 1);
 	CALLOC_ARRAY(pool, st_add(num_parent, 1));
 	pair->one = pool + 1;
 	pair->two = pool;
@@ -1515,8 +1517,9 @@ void diff_tree_combined(const struct object_id *oid,
 
 	diffopts = *opt;
 	copy_pathspec(&diffopts.pathspec, &opt->pathspec);
-	diffopts.flags.recursive = 1;
 	diffopts.flags.allow_external = 0;
+	if (!opt->flags.no_recursive_diff_tree_combined)
+		diffopts.flags.recursive = 1;
 
 	/* find set of paths that everybody touches
 	 *

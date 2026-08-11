@@ -3,7 +3,7 @@ Upstream-Contact: git@vger.kernel.org
 Source: https://www.kernel.org/pub/software/scm/git/
 
 Files: *
-Copyright: © 2005-2025, Linus Torvalds and others.
+Copyright: © 2005-2026, Linus Torvalds and others.
 License: GPL-2
 
 Files: reftable/* t/unit-tests/u-reftable-*.c
@@ -175,14 +175,6 @@ License: GPL-2+
 Files: compat/vcbuild/include/sys/utime.h
 Copyright: ?
 License: mingw-runtime
-
-Files: compat/nedmalloc/*
-Copyright: © 2005-2006 Niall Douglas
-License: Boost
-
-Files: compat/nedmalloc/malloc.c.h
-Copyright: © 2006, KJK::Hyperion <hackbunny@reactos.com>
-License: dlmalloc
 
 Files: compat/regex/*
 Copyright: © 1985, 1989-93, 1995-2010, Free Software Foundation, Inc.
@@ -376,37 +368,4 @@ License: Boost
  SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
  FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- DEALINGS IN THE SOFTWARE.
-
-License: dlmalloc
- This is a version (aka dlmalloc) of malloc/free/realloc written by
- Doug Lea and released to the public domain, as explained at
- http://creativecommons.org/licenses/publicdomain.  Send questions,
- comments, complaints, performance data, etc to dl@cs.oswego.edu
- .
- Incorporates code from intrin_x86.h, which bears the following notice:
- .
- Compatibility <intrin_x86.h> header for GCC -- GCC equivalents of intrinsic
- Microsoft Visual C++ functions. Originally developed for the ReactOS
- (<http://www.reactos.org/>) and TinyKrnl (<http://www.tinykrnl.org/>)
- projects.
- .
- Copyright (c) 2006 KJK::Hyperion <hackbunny@reactos.com>
- .
- Permission is hereby granted, free of charge, to any person obtaining a
- copy of this software and associated documentation files (the "Software"),
- to deal in the Software without restriction, including without limitation
- the rights to use, copy, modify, merge, publish, distribute, sublicense,
- and/or sell copies of the Software, and to permit persons to whom the
- Software is furnished to do so, subject to the following conditions:
- .
- The above copyright notice and this permission notice shall be included in
- all copies or substantial portions of the Software.
- .
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  DEALINGS IN THE SOFTWARE.

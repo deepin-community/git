@@ -675,7 +675,9 @@ test_expect_success 'match percent-encoded values' '
 test_expect_success 'match percent-encoded UTF-8 values in path' '
 	test_config credential.https://example.com.useHttpPath true &&
 	test_config credential.https://example.com/perú.git.helper "$HELPER" &&
-	check fill <<-\EOF
+	# NOTE: do not quote this heredoc, Dash 0.5.13 has a bug with heredocs
+	# that contain multibyte chars.
+	check fill <<-EOF
 	url=https://example.com/per%C3%BA.git
 	--
 	protocol=https
@@ -991,18 +993,24 @@ test_expect_success 'url parser not confused by encoded markers' '
 
 test_expect_success 'credential config with partial URLs' '
 	echo "echo password=yep" | write_script git-credential-yep &&
-	test_write_lines url=https://user@example.com/repo.git >stdin &&
+	test_write_lines url=https://user@example.com/org/repo.git >stdin &&
 	for partial in \
 		example.com \
+		example.com/org/repo.git \
 		user@example.com \
+		user@example.com/org/repo.git \
 		https:// \
 		https://example.com \
 		https://example.com/ \
+		https://example.com/org \
+		https://example.com/org/ \
+		https://example.com/org/repo.git \
 		https://user@example.com \
 		https://user@example.com/ \
-		https://example.com/repo.git \
-		https://user@example.com/repo.git \
-		/repo.git
+		https://user@example.com/org \
+		https://user@example.com/org/ \
+		https://user@example.com/org/repo.git \
+		/org/repo.git
 	do
 		git -c credential.$partial.helper=yep \
 			credential fill <stdin >stdout &&
@@ -1012,7 +1020,12 @@ test_expect_success 'credential config with partial URLs' '
 
 	for partial in \
 		dont.use.this \
+		example.com/o \
+		user@example.com/o \
 		http:// \
+		https://example.com/o \
+		https://user@example.com/o \
+		/o \
 		/repo
 	do
 		git -c credential.$partial.helper=yep \

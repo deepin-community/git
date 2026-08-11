@@ -5,6 +5,7 @@
 #include "gettext.h"
 #include "strbuf.h"
 #include "string-list.h"
+#include "strmap.h"
 #include "utf8.h"
 
 static int disallow_abbreviated_options;
@@ -133,7 +134,6 @@ static enum parse_opt_result do_get_value(struct parse_opt_ctx_t *p,
 {
 	const char *arg;
 	const int unset = flags & OPT_UNSET;
-	int err;
 
 	if (unset && p->opt)
 		return error(_("%s takes no value"), optname(opt, flags));
@@ -209,21 +209,29 @@ static enum parse_opt_result do_get_value(struct parse_opt_ctx_t *p,
 	case OPTION_FILENAME:
 	{
 		const char *value;
-
-		FREE_AND_NULL(*(char **)opt->value);
-
-		err = 0;
+		bool is_optional;
 
 		if (unset)
 			value = NULL;
 		else if (opt->flags & PARSE_OPT_OPTARG && !p->opt)
-			value = (const char *) opt->defval;
-		else
-			err = get_arg(p, opt, flags, &value);
+			value = (const char *)opt->defval;
+		else {
+			int err = get_arg(p, opt, flags, &value);
+			if (err)
+				return err;
+		}
+		if (!value)
+			return 0;
 
-		if (!err)
-			*(char **)opt->value = fix_filename(p->prefix, value);
-		return err;
+		is_optional = skip_prefix(value, ":(optional)", &value);
+		value = fix_filename(p->prefix, value);
+		if (is_optional && is_missing_file(value)) {
+			free((char *)value);
+		} else {
+			FREE_AND_NULL(*(char **)opt->value);
+			*(const char **)opt->value = value;
+		}
+		return 0;
 	}
 	case OPTION_CALLBACK:
 	{
@@ -634,6 +642,7 @@ static void check_typos(const char *arg, const struct option *options)
 static void parse_options_check(const struct option *opts)
 {
 	char short_opts[128];
+	bool saw_number_option = false;
 	void *subcommand_value = NULL;
 
 	memset(short_opts, '\0', sizeof(short_opts));
@@ -647,6 +656,11 @@ static void parse_options_check(const struct option *opts)
 				optbug(opts, "invalid short name");
 			else if (short_opts[opts->short_name]++)
 				optbug(opts, "short name already used");
+		}
+		if (opts->type == OPTION_NUMBER) {
+			if (saw_number_option)
+				optbug(opts, "duplicate numerical option");
+			saw_number_option = true;
 		}
 		if (opts->flags & PARSE_OPT_NODASH &&
 		    ((opts->flags & PARSE_OPT_OPTARG) ||
@@ -705,6 +719,20 @@ static void parse_options_check(const struct option *opts)
 			optbug(opts, "multi-word argh should use dash to separate words");
 	}
 	BUG_if_bug("invalid 'struct option'");
+}
+
+static void parse_options_check_harder(const struct option *opts)
+{
+	struct strset long_names = STRSET_INIT;
+
+	for (; opts->type != OPTION_END; opts++) {
+		if (opts->long_name) {
+			if (!strset_add(&long_names, opts->long_name))
+				optbug(opts, "long name already used");
+		}
+	}
+	BUG_if_bug("invalid 'struct option'");
+	strset_clear(&long_names);
 }
 
 static int has_subcommands(const struct option *options)
@@ -953,10 +981,16 @@ static void free_preprocessed_options(struct option *options)
 	free(options);
 }
 
+#define USAGE_NORMAL 0
+#define USAGE_FULL 1
+#define USAGE_TO_STDOUT 0
+#define USAGE_TO_STDERR 1
+
 static enum parse_opt_result usage_with_options_internal(struct parse_opt_ctx_t *,
 							 const char * const *,
 							 const struct option *,
-							 int, int);
+							 int full_usage,
+							 int usage_to_stderr);
 
 enum parse_opt_result parse_options_step(struct parse_opt_ctx_t *ctx,
 					 const struct option *options,
@@ -1088,7 +1122,8 @@ enum parse_opt_result parse_options_step(struct parse_opt_ctx_t *ctx,
 		}
 
 		if (internal_help && !strcmp(arg + 2, "help-all"))
-			return usage_with_options_internal(ctx, usagestr, options, 1, 0);
+			return usage_with_options_internal(ctx, usagestr, options,
+							   USAGE_FULL, USAGE_TO_STDOUT);
 		if (internal_help && !strcmp(arg + 2, "help"))
 			goto show_usage;
 		switch (parse_long_opt(ctx, arg + 2, options)) {
@@ -1114,7 +1149,7 @@ unknown:
 		    (ctx->flags & PARSE_OPT_KEEP_UNKNOWN_OPT)) {
 			/*
 			 * Found an unknown option given to a command with
-			 * subcommands that has a default operation mode:
+			 * subcommands that have a default operation mode:
 			 * we treat this option and all remaining args as
 			 * arguments meant to that default operation mode.
 			 * So we are done parsing.
@@ -1129,7 +1164,8 @@ unknown:
 	return PARSE_OPT_DONE;
 
  show_usage:
-	return usage_with_options_internal(ctx, usagestr, options, 0, 0);
+	return usage_with_options_internal(ctx, usagestr, options,
+					   USAGE_NORMAL, USAGE_TO_STDOUT);
 }
 
 int parse_options_end(struct parse_opt_ctx_t *ctx)
@@ -1324,6 +1360,8 @@ static enum parse_opt_result usage_with_options_internal(struct parse_opt_ctx_t 
 	const char *prefix = usage_prefix;
 	int saw_empty_line = 0;
 
+	parse_options_check_harder(opts);
+
 	if (!usagestr)
 		return PARSE_OPT_HELP;
 
@@ -1338,7 +1376,7 @@ static enum parse_opt_result usage_with_options_internal(struct parse_opt_ctx_t 
 		if (!saw_empty_line && !*str)
 			saw_empty_line = 1;
 
-		string_list_split(&list, str, '\n', -1);
+		string_list_split(&list, str, "\n", -1);
 		for (j = 0; j < list.nr; j++) {
 			const char *line = list.items[j].string;
 
@@ -1444,7 +1482,8 @@ static enum parse_opt_result usage_with_options_internal(struct parse_opt_ctx_t 
 void NORETURN usage_with_options(const char * const *usagestr,
 			const struct option *opts)
 {
-	usage_with_options_internal(NULL, usagestr, opts, 0, 1);
+	usage_with_options_internal(NULL, usagestr, opts,
+				    USAGE_NORMAL, USAGE_TO_STDERR);
 	exit(129);
 }
 
@@ -1452,9 +1491,16 @@ void show_usage_with_options_if_asked(int ac, const char **av,
 				      const char * const *usagestr,
 				      const struct option *opts)
 {
-	if (ac == 2 && !strcmp(av[1], "-h")) {
-		usage_with_options_internal(NULL, usagestr, opts, 0, 0);
-		exit(129);
+	if (ac == 2) {
+		if (!strcmp(av[1], "-h")) {
+			usage_with_options_internal(NULL, usagestr, opts,
+						    USAGE_NORMAL, USAGE_TO_STDOUT);
+			exit(129);
+		} else if (!strcmp(av[1], "--help-all")) {
+			usage_with_options_internal(NULL, usagestr, opts,
+						    USAGE_FULL, USAGE_TO_STDOUT);
+			exit(129);
+		}
 	}
 }
 

@@ -529,6 +529,17 @@ static struct discovery *discover_refs(const char *service, int for_push)
 		show_http_message(&type, &charset, &buffer);
 		die(_("unable to access '%s' with http.pinnedPubkey configuration: %s"),
 		    transport_anonymize_url(url.buf), curl_errorstr);
+	case HTTP_RATE_LIMITED:
+		if (http_options.retry_after > 0) {
+			show_http_message(&type, &charset, &buffer);
+			die(_("rate limited by '%s', please try again in %ld seconds"),
+				transport_anonymize_url(url.buf),
+				http_options.retry_after);
+		} else {
+			show_http_message(&type, &charset, &buffer);
+			die(_("rate limited by '%s', please try again later"),
+				transport_anonymize_url(url.buf));
+		}
 	default:
 		show_http_message(&type, &charset, &buffer);
 		die(_("unable to access '%s': %s"),
@@ -876,6 +887,7 @@ static int probe_rpc(struct rpc_state *rpc, struct slot_results *results)
 
 	headers = curl_slist_append(headers, rpc->hdr_content_type);
 	headers = curl_slist_append(headers, rpc->hdr_accept);
+	headers = http_append_auth_header(&http_auth, headers);
 
 	curl_easy_setopt(slot->curl, CURLOPT_NOBODY, 0L);
 	curl_easy_setopt(slot->curl, CURLOPT_POST, 1L);
@@ -892,14 +904,6 @@ static int probe_rpc(struct rpc_state *rpc, struct slot_results *results)
 	curl_slist_free_all(headers);
 	strbuf_release(&buf);
 	return err;
-}
-
-static curl_off_t xcurl_off_t(size_t len)
-{
-	uintmax_t size = len;
-	if (size > maximum_signed_value_of_type(curl_off_t))
-		die(_("cannot handle pushes this big"));
-	return (curl_off_t)size;
 }
 
 /*
@@ -942,7 +946,7 @@ static int post_rpc(struct rpc_state *rpc, int stateless_connect, int flush_rece
 		do {
 			err = probe_rpc(rpc, &results);
 			if (err == HTTP_REAUTH)
-				credential_fill(the_repository, &http_auth, 0);
+				http_reauth_prepare(0);
 		} while (err == HTTP_REAUTH);
 		if (err != HTTP_OK)
 			return -1;
@@ -999,7 +1003,7 @@ retry:
 		 * and we just need to send it.
 		 */
 		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDS, gzip_body);
-		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDSIZE_LARGE, xcurl_off_t(gzip_size));
+		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDSIZE_LARGE, cast_size_t_to_curl_off_t(gzip_size));
 
 	} else if (use_gzip && 1024 < rpc->len) {
 		/* The client backend isn't giving us compressed data so
@@ -1030,7 +1034,7 @@ retry:
 
 		headers = curl_slist_append(headers, "Content-Encoding: gzip");
 		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDS, gzip_body);
-		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDSIZE_LARGE, xcurl_off_t(gzip_size));
+		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDSIZE_LARGE, cast_size_t_to_curl_off_t(gzip_size));
 
 		if (options.verbosity > 1) {
 			fprintf(stderr, "POST %s (gzip %lu to %lu bytes)\n",
@@ -1043,7 +1047,7 @@ retry:
 		 * more normal Content-Length approach.
 		 */
 		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDS, rpc->buf);
-		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDSIZE_LARGE, xcurl_off_t(rpc->len));
+		curl_easy_setopt(slot->curl, CURLOPT_POSTFIELDSIZE_LARGE, cast_size_t_to_curl_off_t(rpc->len));
 		if (options.verbosity > 1) {
 			fprintf(stderr, "POST %s (%lu bytes)\n",
 				rpc->service_name, (unsigned long)rpc->len);
@@ -1064,7 +1068,7 @@ retry:
 	rpc->any_written = 0;
 	err = run_slot(slot, NULL);
 	if (err == HTTP_REAUTH && !large_request) {
-		credential_fill(the_repository, &http_auth, 0);
+		http_reauth_prepare(0);
 		curl_slist_free_all(headers);
 		goto retry;
 	}
@@ -1553,11 +1557,18 @@ int cmd_main(int argc, const char **argv)
 	int nongit;
 	int ret = 1;
 
-	setup_git_directory_gently(&nongit);
+	setup_git_directory_gently(the_repository, &nongit);
 	if (argc < 2) {
 		error(_("remote-curl: usage: git remote-curl <remote> [<url>]"));
 		goto cleanup;
 	}
+
+	/*
+	 * yuck, see 9e89dcb66a (builtin/ls-remote: fall back to SHA1 outside
+	 * of a repo, 2024-08-02)
+	 */
+	if (nongit)
+		repo_set_hash_algo(the_repository, GIT_HASH_DEFAULT);
 
 	options.verbosity = 1;
 	options.progress = !!isatty(2);
@@ -1594,7 +1605,7 @@ int cmd_main(int argc, const char **argv)
 			break;
 		if (starts_with(buf.buf, "fetch ")) {
 			if (nongit) {
-				setup_git_directory_gently(&nongit);
+				setup_git_directory_gently(the_repository, &nongit);
 				if (nongit)
 					die(_("remote-curl: fetch attempted without a local repo"));
 			}
